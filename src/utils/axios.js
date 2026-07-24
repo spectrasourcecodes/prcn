@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://ark-api-uedb.onrender.com/api",
+  baseURL: "https://prcn-api.onrender.com/api",
   headers: {
     "Content-Type": "application/json",
   },
