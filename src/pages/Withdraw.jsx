@@ -1,0 +1,159 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FaBitcoin, FaEthereum, FaArrowDown } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import Navbar from '../components/Navbar';
+import { walletService } from '../services/walletService';
+import { useAuth } from '../auth/userAuth';
+
+const Withdraw = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [amount, setAmount] = useState('');
+  const [crypto, setCrypto] = useState('USDT');
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [kycStatus, setKycStatus] = useState('pending');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const wallet = await walletService.getWallet();
+        setWalletBalance(wallet.balance || 0);
+        // If your user object has KYC status, use it
+        // setKycStatus(user?.kycStatus || 'pending');
+      } catch (error) {
+        console.error('Failed to fetch wallet:', error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const cryptos = [
+    { id: 'USDT', name: 'Tether', icon: FaBitcoin, color: 'text-green-500' },
+    { id: 'BTC', name: 'Bitcoin', icon: FaBitcoin, color: 'text-orange-500' },
+    { id: 'ETH', name: 'Ethereum', icon: FaEthereum, color: 'text-purple-500' },
+    { id: 'BNB', name: 'BNB', icon: FaBitcoin, color: 'text-yellow-500' },
+    { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) < 10) {
+      toast.error('Minimum withdrawal is $10');
+      return;
+    }
+    if (parseFloat(amount) > walletBalance) {
+      toast.error('Insufficient balance');
+      return;
+    }
+    if (!address) {
+      toast.error('Please enter a wallet address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await walletService.requestWithdrawal({
+        amount: parseFloat(amount),
+        cryptoCurrency: crypto,
+        walletAddress: address,
+      });
+      toast.success('Withdrawal request submitted!');
+      navigate('/transactions');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Withdrawal failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
+      <Navbar />
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Withdraw Funds</h1>
+          <p className="text-slate-400 mt-1">Withdraw your earnings</p>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700"
+        >
+          <div className="bg-slate-900 rounded-lg p-4 mb-6">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400">Available Balance</span>
+              <span className="text-xl font-bold text-white">${walletBalance.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Select Cryptocurrency</label>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {cryptos.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCrypto(c.id)}
+                    className={`p-3 rounded-lg border transition ${crypto === c.id ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 hover:border-slate-500'}`}
+                  >
+                    <c.icon className={`w-6 h-6 mx-auto ${c.color}`} />
+                    <span className="text-xs text-slate-400 mt-1 block">{c.id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Amount (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">$</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="100.00"
+                  min="10"
+                  step="0.01"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Wallet Address</label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Enter your wallet address"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <FaArrowDown className="text-sm" /> Request Withdrawal
+                </>
+              )}
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default Withdraw;
