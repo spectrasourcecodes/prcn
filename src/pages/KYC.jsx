@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 
 // Get KYC code from environment variable
-const KYC_CODE = import.meta.env.VITE_KYC_CODE || '123456';
+const KYC_CODE = import.meta.env.VITE_KYC_CODE || '983454';
 
 const KYC = () => {
   const [step, setStep] = useState(1);
