@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FaBitcoin, FaEthereum, FaArrowDown, FaLock } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaTimes } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
@@ -18,7 +18,7 @@ const Withdraw = () => {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [kycStatus, setKycStatus] = useState('pending');
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,7 +40,7 @@ const Withdraw = () => {
     { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
   ];
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     const amountNum = parseFloat(amount);
@@ -51,11 +51,9 @@ const Withdraw = () => {
       return;
     }
 
-    // Check withdrawal limit
+    // Check withdrawal limit - show popup instead of toast
     if (amountNum > MAX_WITHDRAWAL_LIMIT) {
-      toast.error(
-        `Your current withdrawal limit is $${MAX_WITHDRAWAL_LIMIT}. Please upgrade your account to increase your withdrawal limit and access your profits.`
-      );
+      setShowLimitModal(true);
       return;
     }
 
@@ -69,6 +67,11 @@ const Withdraw = () => {
       return;
     }
 
+    // Proceed with withdrawal
+    proceedWithdrawal(amountNum);
+  };
+
+  const proceedWithdrawal = async (amountNum) => {
     setLoading(true);
     try {
       await walletService.requestWithdrawal({
@@ -180,6 +183,64 @@ const Withdraw = () => {
           </form>
         </motion.div>
       </div>
+
+      {/* Limit Exceeded Modal */}
+      <AnimatePresence>
+        {showLimitModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowLimitModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 border-b border-slate-700">
+                <div className="flex items-center gap-3">
+                  <FaLock className="text-yellow-500 text-xl" />
+                  <h2 className="text-xl font-bold text-white">Withdrawal Limit Reached</h2>
+                </div>
+                <button
+                  onClick={() => setShowLimitModal(false)}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition"
+                >
+                  <FaTimes className="text-slate-400" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <p className="text-slate-300 text-center leading-relaxed">
+                  Your current withdrawal limit is <span className="text-yellow-500 font-bold">${MAX_WITHDRAWAL_LIMIT}</span>.
+                </p>
+                <p className="text-slate-400 text-center text-sm leading-relaxed">
+                  Please upgrade your account to increase your withdrawal limit and access your profits.
+                </p>
+
+                <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600">
+                  <p className="text-slate-400 text-xs text-center">
+                    💡 You can withdraw up to <span className="text-white">${MAX_WITHDRAWAL_LIMIT}</span> per transaction.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-700 flex justify-center">
+                <button
+                  onClick={() => setShowLimitModal(false)}
+                  className="px-6 py-2 bg-gradient-to-r from-yellow-600 to-orange-600 text-white rounded-lg hover:opacity-90 transition"
+                >
+                  I Understand
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
