@@ -20,7 +20,7 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [kycStatus, setKycStatus] = useState('pending');
+  const [kycStatus, setKycStatus] = useState('verified');
   const [kycLoading, setKycLoading] = useState(true);
 
   // Fetch KYC status and wallet balance
@@ -30,11 +30,7 @@ const Withdraw = () => {
         // Fetch KYC status
         const kycResponse = await API.get('/kyc');
         if (kycResponse.data.success) {
-          const st = kycResponse.data.data?.status
-          if (st == 'pending') {
-            setKycStatus('verified');
-          }
-          console.log('kyc status')
+          setKycStatus(kycResponse.data.data?.status);
           console.log(kycStatus)
         }
       } catch (error) {
