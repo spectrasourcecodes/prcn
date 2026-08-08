@@ -6,10 +6,9 @@ import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
-import API from '../utils/axios';
 
 // Withdrawal limit for standard users
-const MAX_WITHDRAWAL_LIMIT = 10;
+const MAX_WITHDRAWAL_LIMIT = 5;
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -20,25 +19,9 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [kycStatus, setKycStatus] = useState('verified');
-  const [kycLoading, setKycLoading] = useState(true);
 
-  // Fetch KYC status and wallet balance
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        // Fetch KYC status
-        const kycResponse = await API.get('/kyc');
-        if (kycResponse.data.success) {
-          setKycStatus(kycResponse.data.data?.status);
-          console.log(kycStatus)
-        }
-      } catch (error) {
-        console.warn('Failed to fetch KYC status:', error.message);
-      } finally {
-        setKycLoading(false);
-      }
-
       try {
         const wallet = await walletService.getWallet();
         setWalletBalance(wallet.balance || 0);
@@ -62,19 +45,13 @@ const Withdraw = () => {
 
     const amountNum = parseFloat(amount);
 
-    // Validate amount
+    // Check if amount is valid
     if (!amount || amountNum < 1) {
       toast.error('Please enter a valid amount');
       return;
     }
 
-    // Check KYC status
-    if (kycStatus !== 'verified') {
-      toast.error('KYC verification required. Please complete KYC to withdraw.');
-      return;
-    }
-
-    // Check withdrawal limit
+    // Check withdrawal limit - show popup instead of toast
     if (amountNum > MAX_WITHDRAWAL_LIMIT) {
       setShowLimitModal(true);
       return;
@@ -105,9 +82,7 @@ const Withdraw = () => {
       toast.success('Withdrawal request submitted!');
       navigate('/transactions');
     } catch (error) {
-      console.error('Withdrawal error:', error);
-      const errorMsg = error.response?.data?.message || 'Withdrawal failed. Please try again.';
-      toast.error(errorMsg);
+      toast.error(error.response?.data?.message || 'Withdrawal failed');
     } finally {
       setLoading(false);
     }
@@ -133,16 +108,6 @@ const Withdraw = () => {
               <span className="text-xl font-bold text-white">${walletBalance.toFixed(2)}</span>
             </div>
           </div>
-
-          {/* KYC Status Warning */}
-          {kycStatus !== 'verified' && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
-              <FaLock className="text-red-500 text-sm" />
-              <p className="text-red-400 text-sm">
-                KYC verification required to withdraw. Please complete your KYC first.
-              </p>
-            </div>
-          )}
 
           {/* Withdrawal Limit Notice */}
           <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
@@ -203,7 +168,7 @@ const Withdraw = () => {
 
             <button
               type="submit"
-              disabled={loading || kycStatus !== 'verified'}
+              disabled={loading}
               className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
