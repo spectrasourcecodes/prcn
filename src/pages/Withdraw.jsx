@@ -30,7 +30,8 @@ const Withdraw = () => {
         // Fetch KYC status
         const kycResponse = await API.get('/kyc');
         if (kycResponse.data.success) {
-          setKycStatus(kycResponse.data.data.status);
+          console.log(kycResponse)
+          setKycStatus(kycResponse.data?.data?.status);
         }
       } catch (error) {
         console.warn('Failed to fetch KYC status:', error.message);
