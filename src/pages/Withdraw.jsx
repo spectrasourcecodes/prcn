@@ -110,7 +110,7 @@ const Withdraw = () => {
           </div>
 
           {/* Withdrawal Limit Notice */}
-          <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+          {/* <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
             <FaLock className="text-yellow-500 text-sm mt-0.5" />
             <div>
               <p className="text-yellow-500 text-sm font-medium">Withdrawal Limit: ${MAX_WITHDRAWAL_LIMIT}</p>
@@ -118,7 +118,7 @@ const Withdraw = () => {
                 Your current withdrawal limit is ${MAX_WITHDRAWAL_LIMIT}. Upgrade your account to withdraw more.
               </p>
             </div>
-          </div>
+          </div> */}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
