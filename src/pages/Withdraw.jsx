@@ -82,8 +82,7 @@ const Withdraw = () => {
       toast.success('Withdrawal request submitted!');
       navigate('/transactions');
     } catch (error) {
-      toast.success('Withdrawal request submitted!');
-      // toast.error(error.response?.data?.message || 'Withdrawal failed');
+      toast.error(error.response?.data?.message || 'Withdrawal failed');
     } finally {
       setLoading(false);
     }
@@ -184,7 +183,7 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* Limit Exceeded Modal */}
+      {/* Limit Exceeded Modal - Updated Message */}
       <AnimatePresence>
         {showLimitModal && (
           <div
@@ -199,10 +198,10 @@ const Withdraw = () => {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 border-b border-slate-700">
+              <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-red-600/20 to-orange-600/20 border-b border-slate-700">
                 <div className="flex items-center gap-3">
-                  <FaLock className="text-yellow-500 text-xl" />
-                  <h2 className="text-xl font-bold text-white">Withdrawal Limit Reached</h2>
+                  <FaLock className="text-red-500 text-xl" />
+                  <h2 className="text-xl font-bold text-white">Withdrawal Restricted</h2>
                 </div>
                 <button
                   onClick={() => setShowLimitModal(false)}
@@ -214,25 +213,25 @@ const Withdraw = () => {
 
               {/* Body */}
               <div className="p-6 space-y-4">
-                <p className="text-slate-300 text-center leading-relaxed">
-                  Your current withdrawal limit is <span className="text-yellow-500 font-bold">${MAX_WITHDRAWAL_LIMIT}</span>.
-                </p>
-                <p className="text-slate-400 text-center text-sm leading-relaxed">
-                  Please upgrade your account to increase your withdrawal limit and access your profits.
-                </p>
+                <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <FaLock className="text-red-500 text-lg mt-0.5 flex-shrink-0" />
+                  <p className="text-slate-200 text-sm leading-relaxed">
+                    Withdrawal Restricted. Your accumulated profit has exceeded the withdrawal limit. A <span className="text-yellow-400 font-bold">€100 network fee</span> is required to complete the transfer.
+                  </p>
+                </div>
 
-                <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600">
+                <div className="mt-2 p-3 bg-slate-700/30 rounded-lg border border-slate-600">
                   <p className="text-slate-400 text-xs text-center">
-                    💡 You can withdraw up to <span className="text-white">${MAX_WITHDRAWAL_LIMIT}</span> per transaction.
+                    💡 The network fee is a one-time payment to process your withdrawal.
                   </p>
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-slate-700 flex justify-center">
+              <div className="px-6 py-4 border-t border-slate-700 flex flex-col gap-3">
                 <button
                   onClick={() => setShowLimitModal(false)}
-                  className="px-6 py-2 bg-gradient-to-r from-yellow-600 to-orange-600 text-white rounded-lg hover:opacity-90 transition"
+                  className="w-full py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:opacity-90 transition"
                 >
                   I Understand
                 </button>
