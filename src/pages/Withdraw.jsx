@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
+import API from '../utils/axios';
+import { getCurrencySymbol } from '../utils/currency';
 
 // Withdrawal limit for standard users
 const MAX_WITHDRAWAL_LIMIT = 5;
@@ -19,9 +21,26 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [kycStatus, setKycStatus] = useState('pending');
+  const [kycLoading, setKycLoading] = useState(true);
+
+  // ✅ Get currency symbol
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   useEffect(() => {
     const fetchData = async () => {
+      try {
+        // Fetch KYC status
+        const kycResponse = await API.get('/kyc');
+        if (kycResponse.data.success) {
+          setKycStatus(kycResponse.data.data.status);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch KYC status:', error.message);
+      } finally {
+        setKycLoading(false);
+      }
+
       try {
         const wallet = await walletService.getWallet();
         setWalletBalance(wallet.balance || 0);
@@ -48,6 +67,12 @@ const Withdraw = () => {
     // Check if amount is valid
     if (!amount || amountNum < 1) {
       toast.error('Please enter a valid amount');
+      return;
+    }
+
+    // Check KYC status
+    if (kycStatus !== 'verified') {
+      toast.error('KYC verification required. Please complete KYC to withdraw.');
       return;
     }
 
@@ -88,6 +113,11 @@ const Withdraw = () => {
     }
   };
 
+  // ✅ Format currency with symbol
+  const formatCurrency = (value) => {
+    return `${currencySymbol}${value?.toLocaleString() || '0.00'}`;
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
       <Navbar />
@@ -105,20 +135,19 @@ const Withdraw = () => {
           <div className="bg-slate-900 rounded-lg p-4 mb-6">
             <div className="flex justify-between items-center">
               <span className="text-slate-400">Available Balance</span>
-              <span className="text-xl font-bold text-white">${walletBalance.toFixed(2)}</span>
+              <span className="text-xl font-bold text-white">{formatCurrency(walletBalance)}</span>
             </div>
           </div>
 
-          {/* Withdrawal Limit Notice */}
-          {/* <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
-            <FaLock className="text-yellow-500 text-sm mt-0.5" />
-            <div>
-              <p className="text-yellow-500 text-sm font-medium">Withdrawal Limit: ${MAX_WITHDRAWAL_LIMIT}</p>
-              <p className="text-xs text-yellow-400/70">
-                Your current withdrawal limit is ${MAX_WITHDRAWAL_LIMIT}. Upgrade your account to withdraw more.
+          {/* KYC Status Warning */}
+          {kycStatus !== 'verified' && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
+              <FaLock className="text-red-500 text-sm" />
+              <p className="text-red-400 text-sm">
+                KYC verification required to withdraw. Please complete your KYC first.
               </p>
             </div>
-          </div> */}
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -139,9 +168,11 @@ const Withdraw = () => {
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Amount (USD)</label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Amount ({user?.currency || 'USD'})</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">$</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                  {currencySymbol}
+                </span>
                 <input
                   type="number"
                   value={amount}
@@ -152,7 +183,6 @@ const Withdraw = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
-              <p className="text-xs text-slate-400 mt-1">Maximum withdrawal: ${MAX_WITHDRAWAL_LIMIT}</p>
             </div>
 
             <div>
@@ -168,7 +198,7 @@ const Withdraw = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || kycStatus !== 'verified'}
               className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -183,7 +213,7 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* Limit Exceeded Modal - Updated Message */}
+      {/* Limit Exceeded Modal */}
       <AnimatePresence>
         {showLimitModal && (
           <div

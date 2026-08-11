@@ -12,6 +12,7 @@ import GoogleTranslate from './GoogleTranslate';
 import { SITE_NAME, ADMIN_WHATSAPP, ADMIN_TELEGRAM } from '../data/mockData';
 import API from '../utils/axios';
 import { useAuth } from '../auth/userAuth';
+import { getCurrencySymbol } from '../utils/currency';
 
 Modal.setAppElement('#root');
 
@@ -78,8 +79,8 @@ const Navbar = () => {
     { path: '/withdraw', label: 'Withdraw', icon: FaWallet },
     { path: '/transactions', label: 'Transactions', icon: FaHistory },
     { path: '/plans', label: 'Invest Plans', icon: FaDollarSign },
-    { path: '/market', label: 'Market', icon: FaChartLine },
-    { path: '/kyc', label: 'Kyc Verification', icon:  FaIdCard},
+    { path: '/notifications', label: 'Notifications', icon: FaBell },
+    { path: '/kyc', label: 'Kyc Verification', icon: FaIdCard },
     { path: '/referrals', label: 'Referrals', icon: FaUsers },
     { path: '/profile', label: 'Profile', icon: FaUserCircle },
     { path: '/security', label: 'Security', icon: FaShieldAlt },
@@ -102,9 +103,8 @@ const Navbar = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  const currencySymbol = user?.currency === 'USD' ? '$' : 
-                        user?.currency === 'EUR' ? '€' : 
-                        user?.currency === 'GBP' ? '£' : '$';
+  // ✅ Use shared currency symbol function
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   const displayBalance = loading ? '...' : `${currencySymbol}${wallet.totalBalance?.toLocaleString() || '0.00'}`;
 
@@ -119,7 +119,6 @@ const Navbar = () => {
         <div className="container mx-auto px-3 sm:px-4 flex items-center justify-between w-full">
           {/* Left section - Hamburger + Logo */}
           <div className="flex items-center gap-3">
-            {/* Hamburger Menu Button - Now on the LEFT */}
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="lg:hidden text-white p-2 hover:bg-white/10 rounded-lg transition"
@@ -195,7 +194,6 @@ const Navbar = () => {
           </button>
 
           <div className="flex flex-col h-[calc(100vh-4rem)] px-4 py-4">
-            {/* Menu Items */}
             <nav className="flex-1 space-y-1 mt-2">
               {navLinks
                 .filter(link => link.path !== "/")
@@ -219,7 +217,6 @@ const Navbar = () => {
                 })}
             </nav>
 
-            {/* Logout */}
             <div className="pt-3 border-t border-slate-700">
               <button
                 onClick={() => {
@@ -298,7 +295,6 @@ const Navbar = () => {
           <h3 className="text-xl font-bold mb-6 text-center">Customer Support</h3>
           
           <div className="space-y-4 mb-6">
-            {/* Live Chat */}
             <button
               onClick={openLiveChat}
               className="w-full flex items-center p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg group"

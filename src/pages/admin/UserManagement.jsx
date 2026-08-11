@@ -587,14 +587,24 @@ const UserManagement = () => {
                       onChange={handleEditChange}
                       className="bg-slate-700 rounded px-2 py-1 text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
                     >
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                      <option value="GBP">GBP</option>
-                      <option value="NGN">NGN</option>
-                      <option value="BRL">BRL</option>
-                      <option value="CAD">CAD</option>
-                      <option value="AUD">AUD</option>
-                      <option value="JPY">JPY</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="BRL">BRL - Brazilian Real</option>
+                      <option value="CAD">CAD - Canadian Dollar</option>
+                      <option value="AUD">AUD - Australian Dollar</option>
+                      <option value="JPY">JPY - Japanese Yen</option>
+                      <option value="CHF">CHF - Swiss Franc</option>
+                      <option value="AED">AED - UAE Dirham</option>
+                      <option value="SAR">SAR - Saudi Riyal</option>
+                      <option value="INR">INR - Indian Rupee</option>
+                      <option value="PKR">PKR - Pakistani Rupee</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="GHS">GHS - Ghanaian Cedi</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                      <option value="DZD">DZD - Algerian Dinar</option>
+                      <option value="JOD">JOD - Jordanian Dinar</option>
                     </select>
                   ) : (
                     <p className="text-white mt-1">{selectedUser.currency || 'USD'}</p>
