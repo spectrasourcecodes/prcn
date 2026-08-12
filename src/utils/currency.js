@@ -11,7 +11,7 @@ export const CURRENCY_SYMBOLS = {
   JPY: '¥',
   CHF: 'CHF',
   AED: 'د.إ',
-  SAR: '﷼',
+  SAR: 'sr',
   INR: '₹',
   PKR: '₨',
   KES: 'KSh',
