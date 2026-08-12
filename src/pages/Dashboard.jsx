@@ -22,9 +22,14 @@ const Dashboard = () => {
   const [activeInvestments, setActiveInvestments] = useState([]);
   const [showBalance, setShowBalance] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [currencySymbol, setCurrencySymbol] = useState('$');
 
-  // ✅ Get currency symbol
-  const currencySymbol = getCurrencySymbol(user?.currency);
+  // ✅ Get currency symbol with fallback
+  useEffect(() => {
+    // Try to get currency from user object
+    const currency = user?.currency || localStorage.getItem('userCurrency') || 'USD';
+    setCurrencySymbol(getCurrencySymbol(currency));
+  }, [user]);
 
   useEffect(() => {
     fetchDashboard();
@@ -98,7 +103,7 @@ const Dashboard = () => {
         <div className="mb-6">
           <div className="flex flex-wrap justify-between items-center gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboards</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400 mt-1">Welcome back, {walletData.userId?.name || 'User'}!</p>
             </div>
             <button 

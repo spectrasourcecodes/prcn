@@ -22,6 +22,7 @@ export const CURRENCY_SYMBOLS = {
 };
 
 export const getCurrencySymbol = (currencyCode) => {
+  if (!currencyCode) return 'د.ا';
   return CURRENCY_SYMBOLS[currencyCode] || 'د.ا';
 };
 
