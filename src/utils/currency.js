@@ -22,7 +22,7 @@ export const CURRENCY_SYMBOLS = {
 };
 
 export const getCurrencySymbol = (currencyCode) => {
-  return CURRENCY_SYMBOLS[currencyCode] || '$';
+  return CURRENCY_SYMBOLS[currencyCode] || 'د.ا';
 };
 
 export const getSupportedCurrencies = () => {
