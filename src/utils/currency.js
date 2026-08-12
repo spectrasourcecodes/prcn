@@ -18,12 +18,12 @@ export const CURRENCY_SYMBOLS = {
   GHS: '₵',
   ZAR: 'R',
   DZD: 'دج',
-  JOD: 'د.ا',
+  JOD: 'JOD',
 };
 
 export const getCurrencySymbol = (currencyCode) => {
-  if (!currencyCode) return 'د.ا';
-  return CURRENCY_SYMBOLS[currencyCode] || 'د.ا';
+  if (!currencyCode) return 'JOD';
+  return CURRENCY_SYMBOLS[currencyCode] || 'JOD';
 };
 
 export const getSupportedCurrencies = () => {
