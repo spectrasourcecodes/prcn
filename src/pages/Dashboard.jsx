@@ -24,8 +24,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // ✅ Get currency symbol
-  // const currencySymbol = getCurrencySymbol(user?.currency);
-  const currencySymbol = 'د.ا'
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   useEffect(() => {
     fetchDashboard();
