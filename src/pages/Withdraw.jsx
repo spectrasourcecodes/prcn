@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaTimes } from 'react-icons/fa';
+import { FaBitcoin, FaEthereum, FaArrowDown, FaTimes } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
 import API from '../utils/axios';
 import { getCurrencySymbol } from '../utils/currency';
-
-// Withdrawal limit for standard users
-const MAX_WITHDRAWAL_LIMIT = 5;
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -20,27 +17,12 @@ const Withdraw = () => {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [showLimitModal, setShowLimitModal] = useState(false);
-  const [kycStatus, setKycStatus] = useState('pending');
-  const [kycLoading, setKycLoading] = useState(true);
 
   // ✅ Get currency symbol
   const currencySymbol = getCurrencySymbol(user?.currency);
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        // Fetch KYC status
-        const kycResponse = await API.get('/kyc');
-        if (kycResponse.data.success) {
-          setKycStatus(kycResponse.data.data.status);
-        }
-      } catch (error) {
-        console.warn('Failed to fetch KYC status:', error.message);
-      } finally {
-        setKycLoading(false);
-      }
-
       try {
         const wallet = await walletService.getWallet();
         setWalletBalance(wallet.balance || 0);
@@ -70,17 +52,17 @@ const Withdraw = () => {
       return;
     }
 
-    // Check KYC status
-    if (kycStatus !== 'verified') {
-      toast.error('KYC verification required. Please complete KYC to withdraw.');
-      return;
-    }
+    // ❌ REMOVED: KYC verification check
+    // if (kycStatus !== 'verified') {
+    //   toast.error('KYC verification required. Please complete KYC to withdraw.');
+    //   return;
+    // }
 
-    // Check withdrawal limit - show popup instead of toast
-    if (amountNum > MAX_WITHDRAWAL_LIMIT) {
-      setShowLimitModal(true);
-      return;
-    }
+    // ❌ REMOVED: Withdrawal limit check
+    // if (amountNum > MAX_WITHDRAWAL_LIMIT) {
+    //   setShowLimitModal(true);
+    //   return;
+    // }
 
     if (amountNum > walletBalance) {
       toast.error('Insufficient balance');
@@ -139,15 +121,15 @@ const Withdraw = () => {
             </div>
           </div>
 
-          {/* KYC Status Warning */}
-          {kycStatus !== 'verified' && (
+          {/* ❌ REMOVED: KYC Status Warning */}
+          {/* {kycStatus !== 'verified' && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
               <FaLock className="text-red-500 text-sm" />
               <p className="text-red-400 text-sm">
                 KYC verification required to withdraw. Please complete your KYC first.
               </p>
             </div>
-          )}
+          )} */}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -198,7 +180,7 @@ const Withdraw = () => {
 
             <button
               type="submit"
-              disabled={loading || kycStatus !== 'verified'}
+              disabled={loading}
               className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -213,63 +195,12 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* Limit Exceeded Modal */}
-      <AnimatePresence>
+      {/* ❌ REMOVED: Limit Exceeded Modal */}
+      {/* <AnimatePresence>
         {showLimitModal && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowLimitModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-red-600/20 to-orange-600/20 border-b border-slate-700">
-                <div className="flex items-center gap-3">
-                  <FaLock className="text-red-500 text-xl" />
-                  <h2 className="text-xl font-bold text-white">Withdrawal Restricted</h2>
-                </div>
-                <button
-                  onClick={() => setShowLimitModal(false)}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition"
-                >
-                  <FaTimes className="text-slate-400" />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="p-6 space-y-4">
-                <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <FaLock className="text-red-500 text-lg mt-0.5 flex-shrink-0" />
-                  <p className="text-slate-200 text-sm leading-relaxed">
-                    Withdrawal Restricted. Your accumulated profit has exceeded the withdrawal limit. A <span className="text-yellow-400 font-bold">€100 network fee</span> is required to complete the transfer.
-                  </p>
-                </div>
-
-                <div className="mt-2 p-3 bg-slate-700/30 rounded-lg border border-slate-600">
-                  <p className="text-slate-400 text-xs text-center">
-                    💡 The network fee is a one-time payment to process your withdrawal.
-                  </p>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-6 py-4 border-t border-slate-700 flex flex-col gap-3">
-                <button
-                  onClick={() => setShowLimitModal(false)}
-                  className="w-full py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:opacity-90 transition"
-                >
-                  I Understand
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          ...
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
     </div>
   );
 };
