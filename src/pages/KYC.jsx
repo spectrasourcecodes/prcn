@@ -46,7 +46,7 @@ const KYC = () => {
   const [verifiedAt, setVerifiedAt] = useState(null);
   const [kycData, setKycData] = useState(null);
 
-  // Form state
+  // Complete form state (all fields)
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     email: user?.email || '',
@@ -124,7 +124,7 @@ const KYC = () => {
       if (response.data.success) {
         toast.success('KYC submitted successfully! Please verify your code.');
         setKycStatus('pending');
-        setShowCodeModal(true); // open modal immediately
+        setShowCodeModal(true);
       }
     } catch (error) {
       console.error('KYC submission error:', error);
@@ -172,7 +172,7 @@ const KYC = () => {
     );
   }
 
-  // --- Determine main content based on status ---
+  // --- Main content based on status ---
   let mainContent;
 
   if (kycStatus === 'verified') {
@@ -238,7 +238,7 @@ const KYC = () => {
       </div>
     );
   } else {
-    // not_submitted or rejected – show form
+    // not_submitted or rejected – show complete form
     const isRejected = kycStatus === 'rejected';
     mainContent = (
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -263,9 +263,142 @@ const KYC = () => {
         >
           <form onSubmit={handleSubmit} className="space-y-4">
             <h3 className="text-lg font-bold text-white mb-4">Personal Information</h3>
-            {/* ... form fields (same as before) ... */}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Full Name *</label>
+                <div className="relative">
+                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    placeholder="John Doe"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Email *</label>
+                <div className="relative">
+                  <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="john@example.com"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Phone Number</label>
+                <div className="relative">
+                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+1 234 567 8900"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Date of Birth *</label>
+                <div className="relative">
+                  <FaCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Gender *</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Nationality *</label>
+                <div className="relative">
+                  <FaGlobe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="nationality"
+                    value={formData.nationality}
+                    onChange={handleChange}
+                    placeholder="American"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Address *</label>
+              <div className="relative">
+                <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="123 Main St, City, Country"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Occupation</label>
+              <div className="relative">
+                <FaBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="occupation"
+                  value={formData.occupation}
+                  onChange={handleChange}
+                  placeholder="Software Engineer"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+
             <hr className="border-slate-700 my-4" />
+
             <h3 className="text-lg font-bold text-white mb-4">Government ID</h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-slate-300 text-sm font-medium mb-2">ID Type *</label>
@@ -281,6 +414,7 @@ const KYC = () => {
                   <option value="national_id">National ID</option>
                 </select>
               </div>
+
               <div>
                 <label className="block text-slate-300 text-sm font-medium mb-2">ID Number *</label>
                 <div className="relative">
@@ -297,6 +431,7 @@ const KYC = () => {
                 </div>
               </div>
             </div>
+
             <button
               type="submit"
               disabled={submitting}
@@ -304,6 +439,7 @@ const KYC = () => {
             >
               {submitting ? <FaSpinner className="animate-spin" /> : 'Submit KYC'}
             </button>
+
             <p className="text-xs text-slate-500 text-center">
               * Required fields. Your information is secure and will not be shared.
             </p>
