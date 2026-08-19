@@ -13,7 +13,7 @@ import API from '../utils/axios';
 const WITHDRAWAL_SETTINGS = {
   popupEnabled: true,      // true = show popup, false = allow withdrawal
   limitEnabled: true,      // true = enforce limit, false = no limit
-  maxLimit: 10,          // Maximum withdrawal amount
+  maxLimit: 10,            // Maximum withdrawal amount
   popupTitle: 'Withdrawal Restricted',
   popupMessage: 'Withdrawal is currently restricted. Please contact support for assistance.',
 };
@@ -27,8 +27,7 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [isKycVerified, setIsKycVerified] = useState(false);
-  const [kycStatus, setKycStatus] = useState('checking');
+  const [kycStatus, setKycStatus] = useState('checking'); // 'checking', 'pending', 'verified', 'rejected'
 
   // ✅ Get currency symbol
   const currencySymbol = getCurrencySymbol(user?.currency);
@@ -39,13 +38,8 @@ const Withdraw = () => {
       try {
         const response = await API.get('/kyc/status');
         if (response.data.success) {
-          setIsKycVerified(response.data.data.status);
           setKycStatus(response.data.data.status);
-          console.log('kyc datas')
-          console.log({
-            kycStatus,
-            isKycVerified,
-          })
+          console.log('KYC status:', response.data.data.status);
         }
       } catch (error) {
         console.error('KYC status check error:', error);
@@ -85,19 +79,19 @@ const Withdraw = () => {
       return;
     }
 
-    // ✅ Check KYC verification
-    if (kycStatus != 'verified') {
-      toast.error('KYC verification required. Please complete KYC to withdraw.');
+    // ✅ Check KYC verification – only allow if status === 'verified'
+    if (kycStatus !== 'verified') {
+      toast.error('KYC verification required. Please complete your KYC to withdraw.');
       return;
     }
 
-    // ✅ Check if withdrawal popup is enabled (HARDCODED)
+    // ✅ Check if withdrawal popup is enabled
     if (WITHDRAWAL_SETTINGS.popupEnabled) {
       setShowLimitModal(true);
       return;
     }
 
-    // ✅ Check if withdrawal limit is enabled (HARDCODED)
+    // ✅ Check if withdrawal limit is enabled
     if (WITHDRAWAL_SETTINGS.limitEnabled && amountNum > WITHDRAWAL_SETTINGS.maxLimit) {
       toast.error(`Withdrawal limit is ${WITHDRAWAL_SETTINGS.maxLimit}. Please enter a lower amount.`);
       return;
@@ -151,6 +145,9 @@ const Withdraw = () => {
     setShowLimitModal(false);
   };
 
+  // Determine if KYC is verified
+  const isKycVerified = kycStatus === 'verified';
+
   return (
     <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
       <Navbar />
@@ -172,17 +169,19 @@ const Withdraw = () => {
             </div>
           </div>
 
-          {/* ✅ KYC Status Warning */}
+          {/* ✅ KYC Status Warning – shown when not verified */}
           {!isKycVerified && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
               <FaLock className="text-red-500 text-sm" />
               <p className="text-red-400 text-sm">
-                KYC verification required to withdraw. Please complete your KYC first.
+                {kycStatus === 'pending'
+                  ? 'Your KYC is pending approval. Please wait for verification.'
+                  : 'KYC verification required to withdraw. Please complete your KYC first.'}
               </p>
             </div>
           )}
 
-          {/* ✅ Withdrawal Limit Warning (HARDCODED) */}
+          {/* ✅ Withdrawal Limit Warning (only when KYC verified and popup disabled) */}
           {WITHDRAWAL_SETTINGS.limitEnabled && isKycVerified && !WITHDRAWAL_SETTINGS.popupEnabled && (
             <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3">
               <FaInfoCircle className="text-yellow-500 text-sm" />
@@ -192,7 +191,7 @@ const Withdraw = () => {
             </div>
           )}
 
-          {/* ✅ Popup Enabled Warning (HARDCODED) */}
+          {/* ✅ Popup Enabled Warning (only when KYC verified) */}
           {WITHDRAWAL_SETTINGS.popupEnabled && isKycVerified && (
             <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-3">
               <FaInfoCircle className="text-blue-500 text-sm" />
