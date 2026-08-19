@@ -11,7 +11,7 @@ import API from '../utils/axios';
 
 // ✅ HARDCODED WITHDRAWAL SETTINGS – limit removed
 const WITHDRAWAL_SETTINGS = {
-  popupEnabled: true,      // true = show popup, false = allow withdrawal
+  popupEnabled: false,      // true = show popup, false = allow withdrawal
   popupTitle: 'Withdrawal Restricted',
   popupMessage: 'Withdrawal is currently restricted. Please contact support for assistance.',
 };
