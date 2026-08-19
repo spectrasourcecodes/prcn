@@ -39,7 +39,7 @@ const Withdraw = () => {
       try {
         const response = await API.get('/kyc/status');
         if (response.data.success) {
-          setIsKycVerified(response.data.data.isVerified);
+          setIsKycVerified(response.data.data.status);
           setKycStatus(response.data.data.status);
         }
       } catch (error) {
