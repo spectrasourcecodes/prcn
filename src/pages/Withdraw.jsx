@@ -86,7 +86,7 @@ const Withdraw = () => {
     }
 
     // ✅ Check KYC verification
-    if (!isKycVerified) {
+    if (kycStatus != 'verified') {
       toast.error('KYC verification required. Please complete KYC to withdraw.');
       return;
     }
