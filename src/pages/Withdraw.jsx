@@ -41,6 +41,11 @@ const Withdraw = () => {
         if (response.data.success) {
           setIsKycVerified(response.data.data.status);
           setKycStatus(response.data.data.status);
+          console.log('kyc datas')
+          console.log({
+            kycStatus,
+            isKycVerified,
+          })
         }
       } catch (error) {
         console.error('KYC status check error:', error);

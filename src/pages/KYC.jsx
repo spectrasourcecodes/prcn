@@ -81,6 +81,8 @@ const KYC = () => {
       const response = await API.get('/kyc');
       if (response.data.success) {
         const data = response.data.data;
+        console.log("data")
+        console.log(data)
         if (data) {
           setKycData(data);
           setKycStatus(data.status || 'pending');
