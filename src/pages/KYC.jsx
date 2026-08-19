@@ -10,9 +10,6 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../auth/userAuth';
 import API from '../utils/axios';
 
-// Get KYC code from environment variable (fallback for development)
-const KYC_CODE = import.meta.env.VITE_KYC_CODE || '123456';
-
 // Helper function to generate random placeholder URLs
 const generateRandomImageUrl = (type) => {
   const placeholders = {
@@ -37,7 +34,6 @@ const generateRandomImageUrl = (type) => {
       'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=400&h=300&fit=crop',
     ],
   };
-  
   const options = placeholders[type] || placeholders.idFront;
   return options[Math.floor(Math.random() * options.length)];
 };
@@ -46,10 +42,11 @@ const KYC = () => {
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [kycStatus, setKycStatus] = useState('not_submitted');
-  const [kycData, setKycData] = useState(null);
+  const [kycStatus, setKycStatus] = useState('not_submitted'); // 'verified', 'pending', 'rejected', 'not_submitted'
+  const [verifiedAt, setVerifiedAt] = useState(null);
+  const [kycData, setKycData] = useState(null); // full data (optional)
 
-  // Personal info form
+  // Form state (only used when not submitted or rejected)
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     email: user?.email || '',
@@ -61,60 +58,36 @@ const KYC = () => {
     occupation: '',
     idType: 'passport',
     idNumber: '',
-    // Image fields removed from UI but kept in state for payload
   });
 
-  // Modal state
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [codeInput, setCodeInput] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch KYC status on mount
+  // Fetch KYC status using the new endpoint
   useEffect(() => {
+    const fetchKYCStatus = async () => {
+      try {
+        setLoading(true);
+        const response = await API.get('/kyc/status');
+        if (response.data.success) {
+          const { status, verifiedAt } = response.data.data;
+          setKycStatus(status);
+          setVerifiedAt(verifiedAt || null);
+        }
+      } catch (error) {
+        console.error('KYC status fetch error:', error);
+        // fallback: assume not submitted
+        setKycStatus('not_submitted');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchKYCStatus();
   }, []);
 
-  const fetchKYCStatus = async () => {
-    try {
-      setLoading(true);
-      const response = await API.get('/kyc');
-      if (response.data.success) {
-        const data = response.data.data;
-        console.log("data")
-        console.log(data)
-        if (data) {
-          setKycData(data);
-          setKycStatus(data.status || 'pending');
-          // Pre-fill form with existing data
-          if (data.personalInfo) {
-            setFormData(prev => ({
-              ...prev,
-              fullName: data.personalInfo.fullName || prev.fullName,
-              dateOfBirth: data.personalInfo.dateOfBirth || '',
-              gender: data.personalInfo.gender || '',
-              nationality: data.personalInfo.nationality || '',
-              address: data.personalInfo.address || '',
-              occupation: data.personalInfo.occupation || '',
-            }));
-          }
-          if (data.governmentId) {
-            setFormData(prev => ({
-              ...prev,
-              idType: data.governmentId.type || 'passport',
-              idNumber: data.governmentId.idNumber || '',
-            }));
-          }
-        } else {
-          setKycStatus('not_submitted');
-        }
-      }
-    } catch (error) {
-      console.error('KYC status fetch error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // (Optional) fetch full KYC data if needed for prefilling – we'll skip for simplicity
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -131,7 +104,6 @@ const KYC = () => {
 
     setSubmitting(true);
     try {
-      // Generate random image URLs for all image fields
       const submitData = {
         personalInfo: {
           fullName: formData.fullName,
@@ -154,7 +126,7 @@ const KYC = () => {
       const response = await API.post('/kyc', submitData);
       if (response.data.success) {
         toast.success('KYC submitted successfully! Please verify your code.');
-        setKycStatus('pending');
+        setKycStatus('pending'); // update UI
         setShowCodeModal(true);
       }
     } catch (error) {
@@ -201,8 +173,8 @@ const KYC = () => {
     );
   }
 
-  // If already verified
-  if (kycStatus === 'verified' || user?.isVerified) {
+  // --- RENDER: VERIFIED ---
+  if (kycStatus === 'verified') {
     return (
       <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
         <Navbar />
@@ -236,21 +208,54 @@ const KYC = () => {
     );
   }
 
+  // --- RENDER: PENDING ---
+  if (kycStatus === 'pending') {
+    return (
+      <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
+        <Navbar />
+        <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 text-center border border-slate-700"
+          >
+            <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-4">
+              <FaSpinner className="w-10 h-10 text-yellow-500 animate-spin" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">KYC Under Review</h2>
+            <p className="text-slate-400">
+              Your KYC application has been submitted and is currently being reviewed by our team.
+            </p>
+            <p className="text-slate-500 text-sm mt-2">
+              You will receive a notification once the verification is complete.
+            </p>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition"
+            >
+              Go to Dashboard
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER: NOT SUBMITTED or REJECTED (show form) ---
   return (
     <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
       <Navbar />
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">KYC Verification</h1>
-          <p className="text-slate-400 mt-1">Complete your identity verification</p>
-          {kycStatus === 'pending' && (
-            <p className="text-yellow-500 text-sm mt-2">
-              ⏳ Your KYC is pending verification. Enter your code to complete.
-            </p>
-          )}
+          <p className="text-slate-400 mt-1">
+            {kycStatus === 'rejected'
+              ? 'Your previous KYC was rejected. Please update your information and resubmit.'
+              : 'Complete your identity verification'}
+          </p>
           {kycStatus === 'rejected' && (
             <p className="text-red-500 text-sm mt-2">
-              ❌ Your KYC was rejected. Please resubmit with correct information.
+              ❌ Your KYC was rejected. Please correct the information below.
             </p>
           )}
         </div>
@@ -431,8 +436,6 @@ const KYC = () => {
               </div>
             </div>
 
-            {/* Image upload fields removed - URLs will be auto-generated on submit */}
-
             <button
               type="submit"
               disabled={submitting}
@@ -448,7 +451,7 @@ const KYC = () => {
         </motion.div>
       </div>
 
-      {/* Code Verification Modal */}
+      {/* Code Verification Modal (same as before) */}
       <AnimatePresence>
         {showCodeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
