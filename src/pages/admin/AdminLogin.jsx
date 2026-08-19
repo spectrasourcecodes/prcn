@@ -86,7 +86,7 @@ const AdminLogin = () => {
               <FaShieldAlt className="text-4xl text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">Admin Portal</h1>
-            <p className="text-slate-400 mt-2">Procoin Administration</p>
+            <p className="text-slate-400 mt-2">Ark Administration</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

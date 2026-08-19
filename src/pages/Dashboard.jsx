@@ -22,14 +22,9 @@ const Dashboard = () => {
   const [activeInvestments, setActiveInvestments] = useState([]);
   const [showBalance, setShowBalance] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [currencySymbol, setCurrencySymbol] = useState('$');
 
-  // ✅ Get currency symbol with fallback
-  useEffect(() => {
-    // Try to get currency from user object
-    const currency = user?.currency || localStorage.getItem('userCurrency') || 'USD';
-    setCurrencySymbol(getCurrencySymbol(currency));
-  }, [user]);
+  // ✅ Get currency symbol
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   useEffect(() => {
     fetchDashboard();

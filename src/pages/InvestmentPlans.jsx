@@ -8,6 +8,7 @@ import PlanCard from '../components/PlanCard';
 import { investmentService } from '../services/investmentService';
 import { adminWalletService } from '../services/adminWalletService';
 import { useAuth } from '../auth/userAuth';
+import API from '../utils/axios'; // Import API for transaction creation
 
 const InvestmentPlans = () => {
   const navigate = useNavigate();
@@ -88,12 +89,34 @@ const InvestmentPlans = () => {
 
     setCreating(true);
     try {
+      // 1. Create investment
       const response = await investmentService.createInvestment({
         planId: selectedPlan._id,
         amount: investAmount,
         walletId: selectedWallet._id,
         walletAddress: selectedWallet.address,
       });
+
+      // 2. Create transaction record
+      await API.post('/transactions', {
+        type: 'investment',
+        amount: investAmount,
+        currency: 'USD',
+        description: `Investment in ${selectedPlan.name} plan`,
+        metadata: {
+          planId: selectedPlan._id,
+          planName: selectedPlan.name,
+          dailyROI: selectedPlan.dailyROI,
+          duration: selectedPlan.duration,
+          expectedProfit: selectedPlan.expectedProfit,
+          walletId: selectedWallet._id,
+          walletAddress: selectedWallet.address,
+          walletCurrency: selectedWallet.currency,
+        },
+        investmentId: response.investment._id,
+        status: 'pending',
+      });
+
       toast.success('Investment created! Please upload payment proof.');
       setShowWalletModal(false);
       navigate('/payment-proof', {

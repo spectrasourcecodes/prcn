@@ -11,19 +11,18 @@ export const CURRENCY_SYMBOLS = {
   JPY: '¥',
   CHF: 'CHF',
   AED: 'د.إ',
-  SAR: 'sr',
+  SAR: '﷼',
   INR: '₹',
   PKR: '₨',
   KES: 'KSh',
   GHS: '₵',
   ZAR: 'R',
   DZD: 'دج',
-  JOD: 'JOD',
+  JOD: 'د.ا',
 };
 
 export const getCurrencySymbol = (currencyCode) => {
-  if (!currencyCode) return 'JOD';
-  return CURRENCY_SYMBOLS[currencyCode] || 'JOD';
+  return CURRENCY_SYMBOLS[currencyCode] || '$';
 };
 
 export const getSupportedCurrencies = () => {

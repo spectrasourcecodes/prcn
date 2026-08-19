@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaBitcoin, FaEthereum, FaArrowDown, FaTimes } from 'react-icons/fa';
+import { FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaTimes, FaInfoCircle } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
-import API from '../utils/axios';
 import { getCurrencySymbol } from '../utils/currency';
+import API from '../utils/axios';
+
+// ✅ HARDCODED WITHDRAWAL SETTINGS
+const WITHDRAWAL_SETTINGS = {
+  popupEnabled: true,      // true = show popup, false = allow withdrawal
+  limitEnabled: true,      // true = enforce limit, false = no limit
+  maxLimit: 10,          // Maximum withdrawal amount
+  popupTitle: 'Withdrawal Restricted',
+  popupMessage: 'Withdrawal is currently restricted. Please contact support for assistance.',
+};
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -17,9 +26,29 @@ const Withdraw = () => {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [isKycVerified, setIsKycVerified] = useState(false);
+  const [kycStatus, setKycStatus] = useState('checking');
 
   // ✅ Get currency symbol
   const currencySymbol = getCurrencySymbol(user?.currency);
+
+  // ✅ Check KYC status
+  useEffect(() => {
+    const checkKYC = async () => {
+      try {
+        const response = await API.get('/kyc/status');
+        if (response.data.success) {
+          setIsKycVerified(response.data.data.isVerified);
+          setKycStatus(response.data.data.status);
+        }
+      } catch (error) {
+        console.error('KYC status check error:', error);
+        setKycStatus('error');
+      }
+    };
+    checkKYC();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,23 +75,28 @@ const Withdraw = () => {
 
     const amountNum = parseFloat(amount);
 
-    // Check if amount is valid
     if (!amount || amountNum < 1) {
       toast.error('Please enter a valid amount');
       return;
     }
 
-    // ❌ REMOVED: KYC verification check
-    // if (kycStatus !== 'verified') {
-    //   toast.error('KYC verification required. Please complete KYC to withdraw.');
-    //   return;
-    // }
+    // ✅ Check KYC verification
+    if (!isKycVerified) {
+      toast.error('KYC verification required. Please complete KYC to withdraw.');
+      return;
+    }
 
-    // ❌ REMOVED: Withdrawal limit check
-    // if (amountNum > MAX_WITHDRAWAL_LIMIT) {
-    //   setShowLimitModal(true);
-    //   return;
-    // }
+    // ✅ Check if withdrawal popup is enabled (HARDCODED)
+    if (WITHDRAWAL_SETTINGS.popupEnabled) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    // ✅ Check if withdrawal limit is enabled (HARDCODED)
+    if (WITHDRAWAL_SETTINGS.limitEnabled && amountNum > WITHDRAWAL_SETTINGS.maxLimit) {
+      toast.error(`Withdrawal limit is ${WITHDRAWAL_SETTINGS.maxLimit}. Please enter a lower amount.`);
+      return;
+    }
 
     if (amountNum > walletBalance) {
       toast.error('Insufficient balance');
@@ -74,20 +108,28 @@ const Withdraw = () => {
       return;
     }
 
-    // Proceed with withdrawal
     proceedWithdrawal(amountNum);
   };
 
   const proceedWithdrawal = async (amountNum) => {
     setLoading(true);
     try {
-      await walletService.requestWithdrawal({
+      const response = await API.post('/transactions', {
+        type: 'withdrawal',
         amount: amountNum,
-        cryptoCurrency: crypto,
-        walletAddress: address,
+        currency: 'USD',
+        description: `Withdrawal to ${crypto} wallet`,
+        metadata: {
+          cryptoCurrency: crypto,
+          walletAddress: address,
+        },
+        status: 'pending',
       });
-      toast.success('Withdrawal request submitted!');
-      navigate('/transactions');
+
+      if (response.data.success) {
+        toast.success('Withdrawal request submitted!');
+        navigate('/transactions');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Withdrawal failed');
     } finally {
@@ -95,9 +137,13 @@ const Withdraw = () => {
     }
   };
 
-  // ✅ Format currency with symbol
   const formatCurrency = (value) => {
     return `${currencySymbol}${value?.toLocaleString() || '0.00'}`;
+  };
+
+  // ✅ Handle modal close (just closes, doesn't submit)
+  const handleModalClose = () => {
+    setShowLimitModal(false);
   };
 
   return (
@@ -121,15 +167,35 @@ const Withdraw = () => {
             </div>
           </div>
 
-          {/* ❌ REMOVED: KYC Status Warning */}
-          {/* {kycStatus !== 'verified' && (
+          {/* ✅ KYC Status Warning */}
+          {!isKycVerified && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
               <FaLock className="text-red-500 text-sm" />
               <p className="text-red-400 text-sm">
                 KYC verification required to withdraw. Please complete your KYC first.
               </p>
             </div>
-          )} */}
+          )}
+
+          {/* ✅ Withdrawal Limit Warning (HARDCODED) */}
+          {WITHDRAWAL_SETTINGS.limitEnabled && isKycVerified && !WITHDRAWAL_SETTINGS.popupEnabled && (
+            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3">
+              <FaInfoCircle className="text-yellow-500 text-sm" />
+              <p className="text-yellow-400 text-sm">
+                Maximum withdrawal limit: {formatCurrency(WITHDRAWAL_SETTINGS.maxLimit)}
+              </p>
+            </div>
+          )}
+
+          {/* ✅ Popup Enabled Warning (HARDCODED) */}
+          {WITHDRAWAL_SETTINGS.popupEnabled && isKycVerified && (
+            <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-3">
+              <FaInfoCircle className="text-blue-500 text-sm" />
+              <p className="text-blue-400 text-sm">
+                {WITHDRAWAL_SETTINGS.popupMessage}
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -140,7 +206,11 @@ const Withdraw = () => {
                     key={c.id}
                     type="button"
                     onClick={() => setCrypto(c.id)}
-                    className={`p-3 rounded-lg border transition ${crypto === c.id ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 hover:border-slate-500'}`}
+                    className={`p-3 rounded-lg border transition ${
+                      crypto === c.id 
+                        ? 'border-blue-500 bg-blue-500/10' 
+                        : 'border-slate-700 hover:border-slate-500'
+                    }`}
                   >
                     <c.icon className={`w-6 h-6 mx-auto ${c.color}`} />
                     <span className="text-xs text-slate-400 mt-1 block">{c.id}</span>
@@ -180,7 +250,7 @@ const Withdraw = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isKycVerified}
               className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -195,12 +265,61 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* ❌ REMOVED: Limit Exceeded Modal */}
-      {/* <AnimatePresence>
+      {/* ✅ Withdrawal Popup Modal (HARDCODED) */}
+      <AnimatePresence>
         {showLimitModal && (
-          ...
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-slate-700">
+                <div className="flex items-center gap-3">
+                  <FaLock className="text-blue-500 text-xl" />
+                  <h2 className="text-xl font-bold text-white">
+                    {WITHDRAWAL_SETTINGS.popupTitle}
+                  </h2>
+                </div>
+                <button
+                  onClick={handleModalClose}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition"
+                >
+                  <FaTimes className="text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <FaInfoCircle className="text-blue-500 text-lg mt-0.5 flex-shrink-0" />
+                  <p className="text-slate-200 text-sm leading-relaxed">
+                    {WITHDRAWAL_SETTINGS.popupMessage}
+                  </p>
+                </div>
+
+                {WITHDRAWAL_SETTINGS.limitEnabled && (
+                  <div className="mt-2 p-3 bg-slate-700/30 rounded-lg border border-slate-600">
+                    <p className="text-slate-400 text-xs text-center">
+                      💡 Maximum withdrawal limit: {formatCurrency(WITHDRAWAL_SETTINGS.maxLimit)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-700 flex flex-col gap-3">
+                <button
+                  onClick={handleModalClose}
+                  className="w-full py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition"
+                >
+                  I Understand
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
-      </AnimatePresence> */}
+      </AnimatePresence>
     </div>
   );
 };

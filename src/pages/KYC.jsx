@@ -1,79 +1,206 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaUser, FaEnvelope, FaPhone, FaIdCard, FaCheckCircle, FaSpinner, FaTimes } from 'react-icons/fa';
+import { 
+  FaUser, FaEnvelope, FaPhone, FaIdCard, FaCheckCircle, 
+  FaSpinner, FaTimes, FaCalendar, FaGlobe, FaMapMarkerAlt, FaBriefcase 
+} from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../auth/userAuth';
+import API from '../utils/axios';
 
-// Get KYC code from environment variable
-const KYC_CODE = import.meta.env.VITE_KYC_CODE || '983454';
+// Get KYC code from environment variable (fallback for development)
+const KYC_CODE = import.meta.env.VITE_KYC_CODE || '123456';
+
+// Helper function to generate random placeholder URLs
+const generateRandomImageUrl = (type) => {
+  const placeholders = {
+    idFront: [
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224155-1696413565d3?w=400&h=300&fit=crop',
+    ],
+    idBack: [
+      'https://images.unsplash.com/photo-1554224155-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop',
+    ],
+    selfie: [
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
+    ],
+    proofAddress: [
+      'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=400&h=300&fit=crop',
+    ],
+  };
+  
+  const options = placeholders[type] || placeholders.idFront;
+  return options[Math.floor(Math.random() * options.length)];
+};
 
 const KYC = () => {
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [kycVerified, setKycVerified] = useState(false);
+  const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [kycStatus, setKycStatus] = useState('not_submitted');
+  const [kycData, setKycData] = useState(null);
 
   // Personal info form
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
+    fullName: user?.fullName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    dateOfBirth: '',
+    gender: '',
+    nationality: '',
+    address: '',
+    occupation: '',
     idType: 'passport',
     idNumber: '',
-    address: '',
+    // Image fields removed from UI but kept in state for payload
   });
 
   // Modal state
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [codeInput, setCodeInput] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch KYC status on mount
+  useEffect(() => {
+    fetchKYCStatus();
+  }, []);
+
+  const fetchKYCStatus = async () => {
+    try {
+      setLoading(true);
+      const response = await API.get('/kyc');
+      if (response.data.success) {
+        const data = response.data.data;
+        if (data) {
+          setKycData(data);
+          setKycStatus(data.status || 'pending');
+          // Pre-fill form with existing data
+          if (data.personalInfo) {
+            setFormData(prev => ({
+              ...prev,
+              fullName: data.personalInfo.fullName || prev.fullName,
+              dateOfBirth: data.personalInfo.dateOfBirth || '',
+              gender: data.personalInfo.gender || '',
+              nationality: data.personalInfo.nationality || '',
+              address: data.personalInfo.address || '',
+              occupation: data.personalInfo.occupation || '',
+            }));
+          }
+          if (data.governmentId) {
+            setFormData(prev => ({
+              ...prev,
+              idType: data.governmentId.type || 'passport',
+              idNumber: data.governmentId.idNumber || '',
+            }));
+          }
+        } else {
+          setKycStatus('not_submitted');
+        }
+      }
+    } catch (error) {
+      console.error('KYC status fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     // Validate required fields
-    if (!formData.fullName || !formData.email || !formData.idNumber) {
+    if (!formData.fullName || !formData.email || !formData.dateOfBirth || !formData.gender) {
       toast.error('Please fill in all required fields');
       return;
     }
-    // Show the code modal
-    setShowCodeModal(true);
+
+    setSubmitting(true);
+    try {
+      // Generate random image URLs for all image fields
+      const submitData = {
+        personalInfo: {
+          fullName: formData.fullName,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender,
+          nationality: formData.nationality,
+          address: formData.address,
+          occupation: formData.occupation,
+        },
+        governmentId: {
+          type: formData.idType,
+          idNumber: formData.idNumber,
+          frontImage: generateRandomImageUrl('idFront'),
+          backImage: generateRandomImageUrl('idBack'),
+        },
+        selfieImage: generateRandomImageUrl('selfie'),
+        proofOfAddress: generateRandomImageUrl('proofAddress'),
+      };
+
+      const response = await API.post('/kyc', submitData);
+      if (response.data.success) {
+        toast.success('KYC submitted successfully! Please verify your code.');
+        setKycStatus('pending');
+        setShowCodeModal(true);
+      }
+    } catch (error) {
+      console.error('KYC submission error:', error);
+      toast.error(error.response?.data?.message || 'Failed to submit KYC');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleVerifyCode = () => {
+  const handleVerifyCode = async () => {
     if (!codeInput) {
       toast.error('Please enter the verification code');
       return;
     }
 
     setVerifying(true);
-    setTimeout(() => {
-      if (codeInput === KYC_CODE) {
-        setKycVerified(true);
+    try {
+      const response = await API.post('/kyc/verify', { code: codeInput });
+      if (response.data.success) {
+        // Update user in auth context
+        if (updateUser) {
+          updateUser({ isVerified: true });
+        }
+        setKycStatus('verified');
         setShowCodeModal(false);
         toast.success('KYC verification successful!');
-        // Store in localStorage so we remember
-        localStorage.setItem('kyc_verified', 'true');
-      } else {
-        toast.error('Invalid verification code. Please try again.');
-        setCodeInput('');
+        navigate('/withdraw');
       }
+    } catch (error) {
+      console.error('KYC verification error:', error);
+      toast.error(error.response?.data?.message || 'Invalid verification code');
+      setCodeInput('');
+    } finally {
       setVerifying(false);
-    }, 1000);
+    }
   };
 
-  // Check if already verified
-  useState(() => {
-    const saved = localStorage.getItem('kyc_verified');
-    if (saved === 'true') {
-      setKycVerified(true);
-      setStep(2);
-    }
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
-  if (kycVerified) {
+  // If already verified
+  if (kycStatus === 'verified' || user?.isVerified) {
     return (
       <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
         <Navbar />
@@ -95,6 +222,12 @@ const KYC = () => {
                 ✅ You can now deposit, withdraw, and invest without restrictions.
               </p>
             </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition"
+            >
+              Go to Dashboard
+            </button>
           </motion.div>
         </div>
       </div>
@@ -108,6 +241,16 @@ const KYC = () => {
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">KYC Verification</h1>
           <p className="text-slate-400 mt-1">Complete your identity verification</p>
+          {kycStatus === 'pending' && (
+            <p className="text-yellow-500 text-sm mt-2">
+              ⏳ Your KYC is pending verification. Enter your code to complete.
+            </p>
+          )}
+          {kycStatus === 'rejected' && (
+            <p className="text-red-500 text-sm mt-2">
+              ❌ Your KYC was rejected. Please resubmit with correct information.
+            </p>
+          )}
         </div>
 
         <motion.div
@@ -115,17 +258,9 @@ const KYC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700"
         >
-          <div className="mb-6 flex justify-between items-center">
-            <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                style={{ width: step === 1 ? '50%' : '100%' }}
-              />
-            </div>
-            <span className="ml-4 text-sm text-slate-400">{step}/2</span>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
+            <h3 className="text-lg font-bold text-white mb-4">Personal Information</h3>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-slate-300 text-sm font-medium mb-2">Full Name *</label>
@@ -160,45 +295,82 @@ const KYC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Phone Number</label>
-              <div className="relative">
-                <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Phone Number</label>
+                <div className="relative">
+                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+1 234 567 8900"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Date of Birth *</label>
+                <div className="relative">
+                  <FaCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Gender *</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
                   onChange={handleChange}
-                  placeholder="+1 234 567 8900"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-                />
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Nationality *</label>
+                <div className="relative">
+                  <FaGlobe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="nationality"
+                    value={formData.nationality}
+                    onChange={handleChange}
+                    placeholder="American"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">ID Type *</label>
-              <select
-                name="idType"
-                value={formData.idType}
-                onChange={handleChange}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
-              >
-                <option value="passport">Passport</option>
-                <option value="driver_license">Driver License</option>
-                <option value="national_id">National ID</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">ID Number *</label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Address *</label>
               <div className="relative">
-                <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  name="idNumber"
-                  value={formData.idNumber}
+                  name="address"
+                  value={formData.address}
                   onChange={handleChange}
-                  placeholder="AB123456"
+                  placeholder="123 Main St, City, Country"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                   required
                 />
@@ -206,22 +378,65 @@ const KYC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Address</label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                placeholder="123 Main St, City, Country"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-              />
+              <label className="block text-slate-300 text-sm font-medium mb-2">Occupation</label>
+              <div className="relative">
+                <FaBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="occupation"
+                  value={formData.occupation}
+                  onChange={handleChange}
+                  placeholder="Software Engineer"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
             </div>
+
+            <hr className="border-slate-700 my-4" />
+
+            <h3 className="text-lg font-bold text-white mb-4">Government ID</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">ID Type *</label>
+                <select
+                  name="idType"
+                  value={formData.idType}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                >
+                  <option value="passport">Passport</option>
+                  <option value="driver_license">Driver License</option>
+                  <option value="national_id">National ID</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">ID Number *</label>
+                <div className="relative">
+                  <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="idNumber"
+                    value={formData.idNumber}
+                    onChange={handleChange}
+                    placeholder="AB123456"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Image upload fields removed - URLs will be auto-generated on submit */}
 
             <button
               type="submit"
-              className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2"
+              disabled={submitting}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              Submit for Verification
+              {submitting ? <FaSpinner className="animate-spin" /> : 'Submit KYC'}
             </button>
 
             <p className="text-xs text-slate-500 text-center">
@@ -252,7 +467,7 @@ const KYC = () => {
               </div>
 
               <p className="text-slate-400 text-sm mb-4">
-                Enter your 6 digit KYC code, if you dont have code, purchase 1 from our support team.
+                Enter the 6-digit KYC code you received from support.
               </p>
 
               <div>
@@ -282,10 +497,6 @@ const KYC = () => {
                   {verifying ? <FaSpinner className="animate-spin" /> : 'Verify'}
                 </button>
               </div>
-
-              <p className="text-xs text-slate-500 text-center mt-3">
-                make sure your email is verified.
-              </p>
             </motion.div>
           </div>
         )}
