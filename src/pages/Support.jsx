@@ -67,7 +67,7 @@ const Support = () => {
   };
 
   const openLiveChat = () => {
-    window.open('https://chat-support1.onrender.com', '_blank', 'width=400,height=600,scrollbars=yes');
+    window.open('#', '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (
