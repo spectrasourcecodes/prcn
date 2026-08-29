@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaSearch, FaDownload, FaEye, FaPrint, FaSpinner, FaTimes } from 'react-icons/fa';
+import { FaSearch, FaDownload, FaEye, FaPrint, FaSpinner, FaTimes, FaSave } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import API from '../../utils/axios';
 
@@ -19,6 +19,8 @@ const AdminTransactions = () => {
   });
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState({});
+  const [statusChanges, setStatusChanges] = useState({});
 
   const itemsPerPage = 20;
 
@@ -68,6 +70,60 @@ const AdminTransactions = () => {
     } catch (error) {
       console.error('View transaction error:', error);
       toast.error('Failed to load transaction details');
+    }
+  };
+
+  // ✅ Status update handler
+  const handleStatusChange = (transactionId, newStatus) => {
+    setStatusChanges(prev => ({
+      ...prev,
+      [transactionId]: newStatus
+    }));
+  };
+
+  const handleUpdateStatus = async (transactionId) => {
+    const newStatus = statusChanges[transactionId];
+    if (!newStatus) {
+      toast.error('Please select a status');
+      return;
+    }
+
+    // Confirm before updating
+    if (!window.confirm(`Are you sure you want to change this transaction's status to "${newStatus}"?`)) {
+      return;
+    }
+
+    setUpdatingStatus(prev => ({ ...prev, [transactionId]: true }));
+
+    try {
+      const response = await API.patch(`/admin/transactions/${transactionId}/status`, {
+        status: newStatus
+      });
+
+      if (response.data.success) {
+        toast.success(`Transaction status updated to "${newStatus}"`);
+        // Update the transaction in the local list
+        setTransactions(prev =>
+          prev.map(tx =>
+            tx._id === transactionId
+              ? { ...tx, status: newStatus }
+              : tx
+          )
+        );
+        // Clear the status change for this transaction
+        setStatusChanges(prev => {
+          const newChanges = { ...prev };
+          delete newChanges[transactionId];
+          return newChanges;
+        });
+      } else {
+        toast.error(response.data.message || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Status update error:', error);
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [transactionId]: false }));
     }
   };
 
@@ -193,7 +249,7 @@ const AdminTransactions = () => {
               placeholder="Search by user or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-red-500"
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500"
             />
           </div>
           
@@ -203,7 +259,7 @@ const AdminTransactions = () => {
               setFilterType(e.target.value);
               setCurrentPage(1);
             }}
-            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-red-500"
+            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
           >
             <option value="all">All Types</option>
             <option value="deposit">Deposits</option>
@@ -219,7 +275,7 @@ const AdminTransactions = () => {
               setFilterStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-red-500"
+            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
@@ -234,7 +290,7 @@ const AdminTransactions = () => {
             placeholder="Start Date"
             value={dateRange.start}
             onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-red-500"
+            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
           />
 
           <input
@@ -242,7 +298,7 @@ const AdminTransactions = () => {
             placeholder="End Date"
             value={dateRange.end}
             onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-red-500"
+            className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
           />
         </form>
         
@@ -280,48 +336,81 @@ const AdminTransactions = () => {
             </thead>
             <tbody>
               {transactions.length > 0 ? (
-                transactions.map((transaction) => (
-                  <tr key={transaction._id} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
-                    <td className="py-3 px-4 text-slate-400 text-sm font-mono">
-                      {transaction._id?.slice(-8).toUpperCase()}
-                    </td>
-                    <td className="py-3 px-4 text-white">
-                      {transaction.user?.fullName || transaction.user?.name || 'N/A'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getTypeBadge(transaction.type)}`}>
-                        {transaction.type}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`font-semibold ${transaction.type === 'withdrawal' ? 'text-red-500' : 'text-green-500'}`}>
-                        {transaction.type === 'withdrawal' ? '-' : '+'}${(transaction.amount || 0).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(transaction.status)}`}>
-                        {transaction.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-400 text-sm">
-                      {transaction.createdAt ? new Date(transaction.createdAt).toLocaleString() : 'N/A'}
-                    </td>
-                    <td className="py-3 px-4 text-slate-400 text-sm font-mono">
-                      {transaction.reference || '-'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => handleViewDetails(transaction._id)}
-                          className="p-2 hover:bg-slate-600 rounded-lg transition"
-                          title="View Details"
-                        >
-                          <FaEye className="text-blue-400" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                transactions.map((transaction) => {
+                  const isUpdating = updatingStatus[transaction._id];
+                  const currentStatus = statusChanges[transaction._id] || transaction.status;
+
+                  return (
+                    <tr key={transaction._id} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                      <td className="py-3 px-4 text-slate-400 text-sm font-mono">
+                        {transaction._id?.slice(-8).toUpperCase()}
+                      </td>
+                      <td className="py-3 px-4 text-white">
+                        {transaction.user?.fullName || transaction.user?.name || 'N/A'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getTypeBadge(transaction.type)}`}>
+                          {transaction.type}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`font-semibold ${transaction.type === 'withdrawal' ? 'text-red-500' : 'text-green-500'}`}>
+                          {transaction.type === 'withdrawal' ? '-' : '+'}${(transaction.amount || 0).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(transaction.status)}`}>
+                          {transaction.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 text-sm">
+                        {transaction.createdAt ? new Date(transaction.createdAt).toLocaleString() : 'N/A'}
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 text-sm font-mono">
+                        {transaction.reference || '-'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col items-center gap-1">
+                          {/* ✅ Status Update Dropdown - ALWAYS VISIBLE for all transactions */}
+                          <div className="flex items-center gap-1 w-full">
+                            <select
+                              value={statusChanges[transaction._id] || transaction.status}
+                              onChange={(e) => handleStatusChange(transaction._id, e.target.value)}
+                              className="bg-slate-700 border border-slate-600 rounded text-xs px-1 py-0.5 text-white focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="approved">Approved</option>
+                              <option value="completed">Completed</option>
+                              <option value="rejected">Rejected</option>
+                              <option value="failed">Failed</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button
+                              onClick={() => handleUpdateStatus(transaction._id)}
+                              disabled={isUpdating || !statusChanges[transaction._id] || statusChanges[transaction._id] === transaction.status}
+                              className="p-1 hover:bg-slate-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Update Status"
+                            >
+                              {isUpdating ? (
+                                <FaSpinner className="animate-spin text-blue-400 w-3 h-3" />
+                              ) : (
+                                <FaSave className="text-green-400 w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                          {/* View Details Button */}
+                          <button
+                            onClick={() => handleViewDetails(transaction._id)}
+                            className="p-1 hover:bg-slate-600 rounded transition"
+                            title="View Details"
+                          >
+                            <FaEye className="text-blue-400 w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="8" className="py-8 text-center text-slate-400">
