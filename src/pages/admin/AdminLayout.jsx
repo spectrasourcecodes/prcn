@@ -4,7 +4,7 @@ import {
   FaTachometerAlt, FaUsers, FaMoneyBillWave, FaHandHoldingUsd, 
   FaChartLine, FaCog, FaSignOutAlt, FaBars, FaTimes,
   FaBell, FaEnvelope, FaUserShield, FaWallet, FaGift,
-  FaImage
+  FaImage, FaIdCard,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast'; // ✅ Added missing import
 import { SITE_NAME } from '../../data/mockData';
@@ -29,8 +29,9 @@ const AdminLayout = () => {
     { path: '/admin/admin-wallets', label: 'Admin Wallets', icon: FaWallet },
     { path: '/admin/payment-proofs', label: 'Proofs', icon: FaImage },
     { path: '/admin/profile', label: 'Profile', icon: FaUserShield },
+    { path: '/admin/kyc', label: 'Manage Kyc', icon: FaIdCard },
     // External link – opens in new tab
-    { path: 'https://chat-support1.onrender.com/admin', label: 'Live Chat', icon: FaEnvelope, external: true },
+    { path: '#', label: 'Live Chat', icon: FaEnvelope, external: true },
   ];
 
   return (

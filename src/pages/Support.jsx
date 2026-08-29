@@ -67,7 +67,7 @@ const Support = () => {
   };
 
   const openLiveChat = () => {
-    window.open('#', '_blank', 'width=400,height=600,scrollbars=yes');
+    window.open('#S', '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (

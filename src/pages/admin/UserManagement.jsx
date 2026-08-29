@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FaSearch, FaEdit, FaTrash, FaBan, FaCheckCircle, FaEye, FaSpinner, FaTimes, FaSave, FaUser, FaEnvelope, FaPhone, FaGlobe, FaDollarSign, FaCalendarAlt } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import API from '../../utils/axios';
+import { country } from '../../data/countries'; // ✅ import countries
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -63,7 +64,7 @@ const UserManagement = () => {
     fetchUsers();
   };
 
-  // View User - FIXED: Properly destructure response.data.data
+  // View User
   const handleViewUser = async (userId) => {
     try {
       const response = await API.get(`/admin/users/${userId}`);
@@ -565,13 +566,19 @@ const UserManagement = () => {
                     <FaGlobe className="text-blue-400" /> Country
                   </p>
                   {isEditing ? (
-                    <input
-                      type="text"
+                    <select
                       name="country"
                       value={editForm.country || ''}
                       onChange={handleEditChange}
                       className="bg-slate-700 rounded px-2 py-1 text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
-                    />
+                    >
+                      <option value="">Select Country</option>
+                      {country.map((c) => (
+                        <option key={c.code} value={c.name}>
+                          {c.flag} {c.name}
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <p className="text-white mt-1">{selectedUser.country || 'N/A'}</p>
                   )}

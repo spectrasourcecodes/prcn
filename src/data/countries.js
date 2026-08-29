@@ -1,5 +1,30 @@
 // src/data/countries.js
 export const country = [
+  // ---- ARABIC COUNTRIES (sorted alphabetically) ----
+  { name: "Algeria", code: "DZ", flag: "🇩🇿", phoneExtension: "+213", currency: "DZD", symbol: "د.ج" },
+  { name: "Bahrain", code: "BH", flag: "🇧🇭", phoneExtension: "+973", currency: "BHD", symbol: ".د.ب" },
+  { name: "Comoros", code: "KM", flag: "🇰🇲", phoneExtension: "+269", currency: "KMF", symbol: "CF" },
+  { name: "Djibouti", code: "DJ", flag: "🇩🇯", phoneExtension: "+253", currency: "DJF", symbol: "Fdj" },
+  { name: "Egypt", code: "EG", flag: "🇪🇬", phoneExtension: "+20", currency: "EGP", symbol: "E£" },
+  { name: "Iraq", code: "IQ", flag: "🇮🇶", phoneExtension: "+964", currency: "IQD", symbol: "د.ع" },
+  { name: "Jordan", code: "JO", flag: "🇯🇴", phoneExtension: "+962", currency: "JOD", symbol: "د.أ" },
+  { name: "Kuwait", code: "KW", flag: "🇰🇼", phoneExtension: "+965", currency: "KWD", symbol: "د.ك" },
+  { name: "Lebanon", code: "LB", flag: "🇱🇧", phoneExtension: "+961", currency: "LBP", symbol: "ل.ل" },
+  { name: "Libya", code: "LY", flag: "🇱🇾", phoneExtension: "+218", currency: "LYD", symbol: "ل.د" },
+  { name: "Mauritania", code: "MR", flag: "🇲🇷", phoneExtension: "+222", currency: "MRU", symbol: "أوقية" },
+  { name: "Morocco", code: "MA", flag: "🇲🇦", phoneExtension: "+212", currency: "MAD", symbol: "د.م." },
+  { name: "Oman", code: "OM", flag: "🇴🇲", phoneExtension: "+968", currency: "OMR", symbol: "ر.ع." },
+  { name: "Palestine", code: "PS", flag: "🇵🇸", phoneExtension: "+970", currency: "ILS", symbol: "₪" },
+  { name: "Qatar", code: "QA", flag: "🇶🇦", phoneExtension: "+974", currency: "QAR", symbol: "ر.ق" },
+  { name: "Saudi Arabia", code: "SA", flag: "🇸🇦", phoneExtension: "+966", currency: "SAR", symbol: "﷼" },
+  { name: "Somalia", code: "SO", flag: "🇸🇴", phoneExtension: "+252", currency: "SOS", symbol: "Sh" },
+  { name: "Sudan", code: "SD", flag: "🇸🇩", phoneExtension: "+249", currency: "SDG", symbol: "ج.س" },
+  { name: "Syria", code: "SY", flag: "🇸🇾", phoneExtension: "+963", currency: "SYP", symbol: "ل.س" },
+  { name: "Tunisia", code: "TN", flag: "🇹🇳", phoneExtension: "+216", currency: "TND", symbol: "د.ت" },
+  { name: "UAE", code: "AE", flag: "🇦🇪", phoneExtension: "+971", currency: "AED", symbol: "د.إ" },
+  { name: "Yemen", code: "YE", flag: "🇾🇪", phoneExtension: "+967", currency: "YER", symbol: "ر.ي" },
+
+  // ---- OTHER COUNTRIES (original list, duplicates removed) ----
   { name: "United States", code: "US", flag: "🇺🇸", phoneExtension: "+1", currency: "USD", symbol: "$" },
   { name: "United Kingdom", code: "GB", flag: "🇬🇧", phoneExtension: "+44", currency: "GBP", symbol: "£" },
   { name: "Canada", code: "CA", flag: "🇨🇦", phoneExtension: "+1", currency: "CAD", symbol: "C$" },
@@ -21,7 +46,6 @@ export const country = [
   { name: "Brazil", code: "BR", flag: "🇧🇷", phoneExtension: "+55", currency: "BRL", symbol: "R$" },
   { name: "Mexico", code: "MX", flag: "🇲🇽", phoneExtension: "+52", currency: "MXN", symbol: "$" },
   { name: "South Africa", code: "ZA", flag: "🇿🇦", phoneExtension: "+27", currency: "ZAR", symbol: "R" },
-  { name: "UAE", code: "AE", flag: "🇦🇪", phoneExtension: "+971", currency: "AED", symbol: "د.إ" },
   { name: "Singapore", code: "SG", flag: "🇸🇬", phoneExtension: "+65", currency: "SGD", symbol: "S$" },
   { name: "Malaysia", code: "MY", flag: "🇲🇾", phoneExtension: "+60", currency: "MYR", symbol: "RM" },
   { name: "Thailand", code: "TH", flag: "🇹🇭", phoneExtension: "+66", currency: "THB", symbol: "฿" },
@@ -30,10 +54,8 @@ export const country = [
   { name: "Philippines", code: "PH", flag: "🇵🇭", phoneExtension: "+63", currency: "PHP", symbol: "₱" },
   { name: "Pakistan", code: "PK", flag: "🇵🇰", phoneExtension: "+92", currency: "PKR", symbol: "₨" },
   { name: "Nigeria", code: "NG", flag: "🇳🇬", phoneExtension: "+234", currency: "NGN", symbol: "₦" },
-  { name: "Egypt", code: "EG", flag: "🇪🇬", phoneExtension: "+20", currency: "EGP", symbol: "E£" },
   { name: "Turkey", code: "TR", flag: "🇹🇷", phoneExtension: "+90", currency: "TRY", symbol: "₺" },
   { name: "Russia", code: "RU", flag: "🇷🇺", phoneExtension: "+7", currency: "RUB", symbol: "₽" },
   { name: "Poland", code: "PL", flag: "🇵🇱", phoneExtension: "+48", currency: "PLN", symbol: "zł" },
-  { name: "Ukraine", code: "UA", flag: "🇺🇦", phoneExtension: "+380", currency: "UAH", symbol: "₴" },
-  { name: "Saudi Arabia", code: "SA", flag: "🇸🇦", phoneExtension: "+966", currency: "SAR", symbol: "﷼" }
+  { name: "Ukraine", code: "UA", flag: "🇺🇦", phoneExtension: "+380", currency: "UAH", symbol: "₴" }
 ];

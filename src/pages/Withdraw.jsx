@@ -16,6 +16,10 @@ const WITHDRAWAL_SETTINGS = {
   popupMessage: 'Withdrawal is currently restricted. Please contact support for assistance.',
 };
 
+// ✅ WITHDRAWAL LIMIT CONSTANTS
+const MIN_WITHDRAWAL = 100;
+const ACCOUNT_LIMIT = 10;
+
 const Withdraw = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -26,6 +30,8 @@ const Withdraw = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [kycStatus, setKycStatus] = useState('checking'); // 'checking', 'pending', 'verified', 'rejected'
+  const [modalTitle, setModalTitle] = useState(WITHDRAWAL_SETTINGS.popupTitle);
+  const [modalMessage, setModalMessage] = useState(WITHDRAWAL_SETTINGS.popupMessage);
 
   const currencySymbol = getCurrencySymbol(user?.currency);
 
@@ -80,8 +86,20 @@ const Withdraw = () => {
       return;
     }
 
+    // ✅ WITHDRAWAL LIMIT CHECK – show upgrade modal if amount is outside allowed range
+    if (amountNum < MIN_WITHDRAWAL || amountNum > ACCOUNT_LIMIT) {
+      setModalTitle('Withdrawal Limit');
+      setModalMessage(
+        `Your current withdrawal limit is ${ACCOUNT_LIMIT} and the minimum withdrawal is ${MIN_WITHDRAWAL}. Please upgrade your account to complete this withdrawal.`
+      );
+      setShowLimitModal(true);
+      return;
+    }
+
     // ✅ Popup check (if enabled, show modal and abort)
     if (WITHDRAWAL_SETTINGS.popupEnabled) {
+      setModalTitle(WITHDRAWAL_SETTINGS.popupTitle);
+      setModalMessage(WITHDRAWAL_SETTINGS.popupMessage);
       setShowLimitModal(true);
       return;
     }
@@ -259,7 +277,7 @@ const Withdraw = () => {
               <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-slate-700">
                 <div className="flex items-center gap-3">
                   <FaLock className="text-blue-500 text-xl" />
-                  <h2 className="text-xl font-bold text-white">{WITHDRAWAL_SETTINGS.popupTitle}</h2>
+                  <h2 className="text-xl font-bold text-white">{modalTitle}</h2>
                 </div>
                 <button onClick={handleModalClose} className="p-2 hover:bg-slate-700 rounded-lg transition">
                   <FaTimes className="text-slate-400" />
@@ -269,7 +287,7 @@ const Withdraw = () => {
               <div className="p-6 space-y-4">
                 <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                   <FaInfoCircle className="text-blue-500 text-lg mt-0.5 flex-shrink-0" />
-                  <p className="text-slate-200 text-sm leading-relaxed">{WITHDRAWAL_SETTINGS.popupMessage}</p>
+                  <p className="text-slate-200 text-sm leading-relaxed">{modalMessage}</p>
                 </div>
               </div>
 
