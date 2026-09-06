@@ -18,7 +18,7 @@ const WITHDRAWAL_SETTINGS = {
 
 // ✅ WITHDRAWAL LIMIT CONSTANTS
 const MIN_WITHDRAWAL = 100;
-const ACCOUNT_LIMIT = 10;
+const ACCOUNT_LIMIT = 5;
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -90,7 +90,7 @@ const Withdraw = () => {
     if (amountNum < MIN_WITHDRAWAL || amountNum > ACCOUNT_LIMIT) {
       setModalTitle('Withdrawal Limit');
       setModalMessage(
-        `Your current withdrawal limit is ${ACCOUNT_LIMIT} and the minimum withdrawal is ${MIN_WITHDRAWAL}. Please upgrade your account to complete this withdrawal.`
+        `Your withdrawal limit is ${formatCurrency(ACCOUNT_LIMIT)} purchase a scratch card worth €100, to upgrade your withdrawal limit.`
       );
       setShowLimitModal(true);
       return;
