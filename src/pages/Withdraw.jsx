@@ -718,13 +718,13 @@ const Withdraw = () => {
 
               {/* Actions */}
               <div className="flex flex-col gap-3">
-                <button
+                {/* <button
                   onClick={handleContactAdmin}
                   className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold hover:opacity-90 transition flex items-center justify-center gap-2"
                 >
                   <FaWhatsapp className="text-lg" />
                   Chat with Admin to Convert Balance
-                </button>
+                </button> */}
                 <button
                   onClick={() => {
                     setShowAdminSupportModal(false);
