@@ -8,15 +8,14 @@ import {
   SITE_NAME, ADMIN_EMAIL, ADMIN_WHATSAPP, ADMIN_TELEGRAM 
 } from '../data/mockData';
 
+// ✅ Starting duration for the countdown loop
+const INITIAL_TIME = { hours: 2, minutes: 30, seconds: 0 };
+
 const Maintenance = () => {
-  const [timeLeft, setTimeLeft] = useState({
-    hours: 2,
-    minutes: 30,
-    seconds: 0,
-  });
+  const [timeLeft, setTimeLeft] = useState({ ...INITIAL_TIME });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ─── Countdown timer ────────────────────────────────────
+  // ─── Countdown timer (restarts when it hits zero) ───────
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
@@ -31,6 +30,9 @@ const Maintenance = () => {
           hours -= 1;
           minutes = 59;
           seconds = 59;
+        } else {
+          // 🔁 Restart from INITIAL_TIME
+          return { ...INITIAL_TIME };
         }
 
         return { hours, minutes, seconds };
@@ -55,7 +57,7 @@ const Maintenance = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* ─── Background Blobs ──────────────────────────── */}
+      {/* Background Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-20 right-10 w-80 h-80 bg-purple-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -70,12 +72,10 @@ const Maintenance = () => {
       >
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-8 sm:p-12 border border-slate-700 text-center">
 
-          {/* ─── Site Logo ─────────────────────────────── */}
           <h1 className="text-3xl sm:text-4xl font-bold gradient-text mb-6">
             {SITE_NAME}
           </h1>
 
-          {/* ─── Icon ──────────────────────────────────── */}
           <motion.div
             animate={{ rotate: [0, 10, -10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -84,7 +84,6 @@ const Maintenance = () => {
             <FaTools className="w-12 h-12 text-blue-400" />
           </motion.div>
 
-          {/* ─── Heading ───────────────────────────────── */}
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
             We're Under Maintenance
           </h2>
@@ -93,7 +92,7 @@ const Maintenance = () => {
             We'll be back shortly — thank you for your patience!
           </p>
 
-          {/* ─── Countdown ─────────────────────────────── */}
+          {/* Countdown */}
           <div className="mb-8">
             <p className="text-xs uppercase tracking-widest text-slate-500 mb-3 flex items-center justify-center gap-2">
               <FaClock className="text-slate-500" />
@@ -120,7 +119,6 @@ const Maintenance = () => {
             </div>
           </div>
 
-          {/* ─── Refresh Button ────────────────────────── */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
@@ -130,7 +128,6 @@ const Maintenance = () => {
             {isRefreshing ? 'Checking...' : 'Check Again'}
           </button>
 
-          {/* ─── Contact Support ───────────────────────── */}
           <div className="pt-6 border-t border-slate-700">
             <p className="text-sm text-slate-400 mb-4 flex items-center justify-center gap-2">
               <FaHeadset className="text-slate-500" />
@@ -168,7 +165,6 @@ const Maintenance = () => {
             </div>
           </div>
 
-          {/* ─── Footer ────────────────────────────────── */}
           <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-500">
             <FaShieldAlt className="text-slate-600" />
             <span>Your funds and data remain safe during maintenance</span>
