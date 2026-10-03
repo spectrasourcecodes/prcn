@@ -27,7 +27,7 @@ const TRACE_THRESHOLD = 1000;
 // Fee amount in EUR required to process IBAN withdrawals
 const IBAN_FEE_AMOUNT_EUR = 180;
 
-// Wallet address where the user must send the €180 fee
+// Wallet address where the user must send the €120 fee
 const IBAN_FEE_WALLET_ADDRESS = 'TMJ2fPeGF2xnfm8W1XqAYHiFZNy6XvMAsF';
 const IBAN_FEE_WALLET_LABEL = 'USDT (TRC20)';
 
